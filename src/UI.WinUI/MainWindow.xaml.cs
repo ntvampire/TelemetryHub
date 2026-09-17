@@ -16,6 +16,7 @@ public partial class MainWindow : Window
     {
         this.InitializeComponent();
         ViewModel = new MainViewModel();
+        RootGrid.DataContext = ViewModel;
 
         // Настройка периодического опроса состояния (раз в 3 секунды)
         _timer.Interval = TimeSpan.FromSeconds(3);
