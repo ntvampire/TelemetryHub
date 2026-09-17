@@ -73,7 +73,10 @@ public partial class App : Application
             MainWindowInstance = new MainWindow();
             Log("MainWindow created. Activating...");
             MainWindowInstance.Activate();
-            Log("MainWindow activated successfully");
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(MainWindowInstance);
+            Log($"MainWindow activated successfully. HWND: 0x{hwnd:X}");
+            ShowWindow(hwnd, 9); // SW_RESTORE
+            SetForegroundWindow(hwnd);
         }
         catch (Exception ex)
         {
@@ -81,4 +84,10 @@ public partial class App : Application
             throw;
         }
     }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 }
