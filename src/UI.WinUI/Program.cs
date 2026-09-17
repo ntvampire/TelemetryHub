@@ -11,25 +11,34 @@ public static class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        var logPath = Path.Combine(AppContext.BaseDirectory, "startup.log");
+        Console.WriteLine(">>> KsitalTelemetryHub Program.Main entered! <<<");
+        var baseLog = Path.Combine(AppContext.BaseDirectory, "startup.log");
+        var tempLog = Path.Combine(Path.GetTempPath(), "ksital_startup.log");
+        void WriteLog(string msg)
+        {
+            Console.WriteLine(msg);
+            try { File.AppendAllText(baseLog, msg + Environment.NewLine); } catch { }
+            try { File.AppendAllText(tempLog, msg + Environment.NewLine); } catch { }
+        }
+
         try
         {
-            File.WriteAllText(logPath, $"[{DateTime.Now}] Program.Main started with args: {string.Join(" ", args)}\n");
+            WriteLog($"[{DateTime.Now}] Program.Main started with args: {string.Join(" ", args)}");
 
             WinRT.ComWrappersSupport.InitializeComWrappers();
-            File.AppendAllText(logPath, $"[{DateTime.Now}] ComWrappers initialized\n");
+            WriteLog($"[{DateTime.Now}] ComWrappers initialized");
 
             Application.Start((p) =>
             {
                 var context = new DispatcherQueueSynchronizationContext(DispatcherQueue.GetForCurrentThread());
                 SynchronizationContext.SetSynchronizationContext(context);
-                File.AppendAllText(logPath, $"[{DateTime.Now}] Starting App instance...\n");
+                WriteLog($"[{DateTime.Now}] Starting App instance...");
                 _ = new App();
             });
         }
         catch (Exception ex)
         {
-            File.AppendAllText(logPath, $"[{DateTime.Now}] CRASH in Program.Main: {ex}\n");
+            WriteLog($"[{DateTime.Now}] CRASH in Program.Main: {ex}");
             throw;
         }
     }
