@@ -37,11 +37,14 @@ if ($RunWorker) {
 }
 
 Write-Host "4. Starting WinUI 3 Application..." -ForegroundColor Green
-$winUiExe = Join-Path $PSScriptRoot "src\UI.WinUI\bin\x64\Debug\net8.0-windows10.0.19041.0\win-x64\KsitalTelemetryHub.UI.WinUI.exe"
+$winUiDir = Join-Path $PSScriptRoot "src\UI.WinUI\bin\x64\Debug\net8.0-windows10.0.19041.0\win-x64"
+$winUiExe = Join-Path $winUiDir "KsitalTelemetryHub.UI.WinUI.exe"
 
 if (Test-Path $winUiExe) {
-    Start-Process $winUiExe
+    Write-Host "Launching: $winUiExe" -ForegroundColor DarkGray
+    Start-Process -FilePath $winUiExe -WorkingDirectory $winUiDir
 } else {
+    Write-Host "Running via dotnet run..." -ForegroundColor DarkGray
     dotnet run --project $winUiProj -c Debug -r win-x64 --no-build
 }
 
