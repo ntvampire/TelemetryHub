@@ -11,7 +11,9 @@ using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Win32;
 using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using KsitalTelemetryHub.Core;
+using KsitalTelemetryHub.Storage.Sqlite;
 
 namespace KsitalTelemetryHub.UI.Desktop;
 
@@ -192,52 +194,42 @@ exit
             {
                 var importedObjects = ImportExportService.ImportFromExcel(dialog.FileName);
                 
-                using (var connection = new SqliteConnection($"Data Source={_dbPath}"))
+                using (var db = new AppDbContext(_dbPath))
                 {
-                    connection.Open();
-                    
-                    string tableName = "TelemetryTargets"; 
-                    var cmdTable = connection.CreateCommand();
-                    cmdTable.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND (name LIKE '%Target%' OR name LIKE '%Object%') LIMIT 1";
-                    var res = cmdTable.ExecuteScalar();
-                    if (res != null) tableName = res.ToString() ?? "TelemetryTargets";
-
-                    var cmdPragma = connection.CreateCommand();
-                    cmdPragma.CommandText = $"PRAGMA table_info({tableName})";
-                    string phoneCol = "PhoneNumber";
-                    string typeCol = "DeviceType";
-                    using (var reader = cmdPragma.ExecuteReader())
+                    foreach (var target in importedObjects)
                     {
-                        while (reader.Read())
+                        string cleanPhone = PhoneNumber.Normalize(target.PhoneNumber);
+                        if (string.IsNullOrEmpty(cleanPhone)) continue;
+
+                        var existing = db.Objects.FirstOrDefault(o => o.PhoneNumber == cleanPhone);
+                        if (existing != null)
                         {
-                            string colName = reader.GetString(1);
-                            if (colName.Contains("Phone")) phoneCol = colName;
-                            if (colName.Contains("Type") || colName.Contains("Equip")) typeCol = colName;
+                            if (!string.IsNullOrWhiteSpace(target.Name)) existing.Name = target.Name;
+                            if (!string.IsNullOrWhiteSpace(target.District)) existing.District = target.District;
+                            if (Enum.TryParse<DeviceType>(target.DeviceType, true, out var dt)) existing.DeviceType = dt;
+                            if (!string.IsNullOrWhiteSpace(target.Password)) existing.DevicePassword = target.Password;
+                        }
+                        else
+                        {
+                            Enum.TryParse<DeviceType>(target.DeviceType, true, out var dt);
+                            db.Objects.Add(new MonitoredObject
+                            {
+                                Name = string.IsNullOrWhiteSpace(target.Name) ? $"Объект {cleanPhone}" : target.Name,
+                                PhoneNumber = cleanPhone,
+                                District = string.IsNullOrWhiteSpace(target.District) ? "Основной участок" : target.District,
+                                DeviceType = dt,
+                                DevicePassword = string.IsNullOrWhiteSpace(target.Password) ? "00000" : target.Password
+                            });
                         }
                     }
-
-                    using (var transaction = connection.BeginTransaction())
-                    {
-                        foreach (var target in importedObjects)
-                        {
-                            var cmd = connection.CreateCommand();
-                            cmd.Transaction = transaction;
-                            cmd.CommandText = $"INSERT INTO {tableName} (Id, Name, {phoneCol}, {typeCol}) VALUES (@id, @name, @phone, @type)";
-                            cmd.Parameters.AddWithValue("@id", target.Id ?? Guid.NewGuid().ToString());
-                            cmd.Parameters.AddWithValue("@name", target.Name ?? string.Empty);
-                            cmd.Parameters.AddWithValue("@phone", target.PhoneNumber ?? string.Empty);
-                            cmd.Parameters.AddWithValue("@type", target.DeviceType ?? "Ksital");
-                            cmd.ExecuteNonQuery();
-                        }
-                        transaction.Commit();
-                    }
+                    db.SaveChanges();
                 }
 
-                MessageBox.Show($"Успешно импортировано новых объектов: {importedObjects.Count}\nОни появятся в списке диспетчера после перезапуска программы.", "Импорт завершен", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show($"Успешно импортировано/обновлено объектов: {importedObjects.Count}\nСписок обновлен в базе данных.", "Импорт завершен", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка при импорте или сохранении: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Ошибка при импорте: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }
@@ -256,50 +248,24 @@ exit
             try
             {
                 var targets = new System.Collections.Generic.List<ImportExportItem>();
-                
-                using (var connection = new SqliteConnection($"Data Source={_dbPath}"))
+
+                using (var db = new AppDbContext(_dbPath))
                 {
-                    connection.Open();
-                    
-                    string tableName = "TelemetryTargets"; 
-                    var cmdTable = connection.CreateCommand();
-                    cmdTable.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND (name LIKE '%Target%' OR name LIKE '%Object%') LIMIT 1";
-                    var res = cmdTable.ExecuteScalar();
-                    if (res != null) tableName = res.ToString() ?? "TelemetryTargets";
-
-                    var cmdPragma = connection.CreateCommand();
-                    cmdPragma.CommandText = $"PRAGMA table_info({tableName})";
-                    string phoneCol = "PhoneNumber";
-                    string typeCol = "DeviceType";
-                    using (var reader = cmdPragma.ExecuteReader())
-                    {
-                        while (reader.Read())
+                    targets = db.Objects
+                        .Select(o => new ImportExportItem
                         {
-                            string colName = reader.GetString(1);
-                            if (colName.Contains("Phone")) phoneCol = colName;
-                            if (colName.Contains("Type") || colName.Contains("Equip")) typeCol = colName;
-                        }
-                    }
-
-                    var cmd = connection.CreateCommand();
-                    cmd.CommandText = $"SELECT Id, Name, {phoneCol}, {typeCol} FROM {tableName}";
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            targets.Add(new ImportExportItem
-                            {
-                                Id = reader.GetValue(0)?.ToString() ?? Guid.NewGuid().ToString(),
-                                Name = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
-                                PhoneNumber = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
-                                DeviceType = reader.IsDBNull(3) ? string.Empty : reader.GetString(3)
-                            });
-                        }
-                    }
+                            Id = o.Id.ToString(),
+                            District = o.District,
+                            Name = o.Name,
+                            PhoneNumber = o.PhoneNumber,
+                            DeviceType = o.DeviceType.ToString(),
+                            Password = o.DevicePassword
+                        })
+                        .ToList();
                 }
 
                 ImportExportService.ExportToExcel(dialog.FileName, targets);
-                MessageBox.Show("Список объектов успешно экспортирован и готов к использованию.", "Экспорт завершен", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show($"Список объектов успешно экспортирован ({targets.Count} шт.).", "Экспорт завершен", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {

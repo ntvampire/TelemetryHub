@@ -6,14 +6,30 @@ using KsitalTelemetryHub.Core;
 
 namespace KsitalTelemetryHub.Parser.Ccu825;
 
-public class Ccu825MessageParser
+public class Ccu825MessageParser : ITelemetryParser
 {
     private static readonly Regex TempRegex = new(@"\b(T\d+)\s*[:=]\s*([+-]?\d+(?:[\.,]\d+)?)\s*°?C?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex BatRegex = new(@"(?:Vbat|Bat|АКБ)\s*[:=]\s*(\d+(?:[\.,]\d+)?)\s*V?", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex PowerRegex = new(@"(?:220V|Pwr|Питание|Сеть)\s*[:=]\s*([A-Za-zА-Яа-я0-9]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex InputRegex = new(@"\b(In\d+|Вход\d+)\s*[:=]\s*([A-Za-zА-Яа-я0-9]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    public KsitalReport Parse(string rawText, DateTime? timestamp = null)
+    public DeviceType SupportedDeviceType => DeviceType.Ccu825;
+
+    public bool CanParse(string rawText)
+    {
+        if (string.IsNullOrWhiteSpace(rawText)) return false;
+        return rawText.Contains("CCU", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("RADS", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("Vbat", StringComparison.OrdinalIgnoreCase) ||
+               InputRegex.IsMatch(rawText);
+    }
+
+    public TelemetrySnapshot Parse(string rawText, DateTime timestamp, string? senderPhone = null)
+    {
+        return Parse(rawText, (DateTime?)timestamp, senderPhone);
+    }
+
+    public KsitalReport Parse(string rawText, DateTime? timestamp = null, string? senderPhone = null)
     {
         if (string.IsNullOrWhiteSpace(rawText))
         {
@@ -22,6 +38,7 @@ public class Ccu825MessageParser
 
         var report = new KsitalReport
         {
+            SenderPhone = PhoneNumber.Normalize(senderPhone),
             Timestamp = timestamp ?? DateTime.UtcNow,
             RawText = rawText
         };

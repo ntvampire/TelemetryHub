@@ -6,14 +6,30 @@ using KsitalTelemetryHub.Core;
 
 namespace KsitalTelemetryHub.Parser.Owen;
 
-public class OwenMessageParser
+public class OwenMessageParser : ITelemetryParser
 {
     private static readonly Regex TempRegex = new(@"\b(T\d+)\s*[:=]\s*([+-]?\d+(?:[\.,]\d+)?)\s*°?C?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex BatRegex = new(@"(?:VBAT|BAT|АКБ|Uакб)\s*[:=]\s*(\d+(?:[\.,]\d+)?)\s*V?", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex PowerRegex = new(@"(?:220V|PWR|СЕТЬ|ПИТАНИЕ)\s*[:=]\s*([A-Za-zА-Яа-я0-9]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-private static readonly Regex ErrorRegex = new(@"\b(?:ERR|АВАРИЯ|ОШИБКА)\s*[:=]\s*(.+?)(?=\s+[A-Za-zА-Яа-я0-9_]+[:=]|$)|(?<!OWEN\s+)\bALARM\s*[:=]\s*(.+?)(?=\s+[A-Za-zА-Яа-я0-9_]+[:=]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex ErrorRegex = new(@"\b(?:ERR|АВАРИЯ|ОШИБКА)\s*[:=]\s*(.+?)(?=\s+[A-Za-zА-Яа-я0-9_]+[:=]|$)|(?<!OWEN\s+)\bALARM\s*[:=]\s*(.+?)(?=\s+[A-Za-zА-Яа-я0-9_]+[:=]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    public KsitalReport Parse(string rawText, DateTime? timestamp = null)
+    public DeviceType SupportedDeviceType => DeviceType.OwenPlc;
+
+    public bool CanParse(string rawText)
+    {
+        if (string.IsNullOrWhiteSpace(rawText)) return false;
+        return rawText.Contains("OWEN", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("ОВЕН", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("ПЛК", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("Uакб", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public TelemetrySnapshot Parse(string rawText, DateTime timestamp, string? senderPhone = null)
+    {
+        return Parse(rawText, (DateTime?)timestamp, senderPhone);
+    }
+
+    public KsitalReport Parse(string rawText, DateTime? timestamp = null, string? senderPhone = null)
     {
         if (string.IsNullOrWhiteSpace(rawText))
         {
@@ -22,6 +38,7 @@ private static readonly Regex ErrorRegex = new(@"\b(?:ERR|АВАРИЯ|ОШИБ�
 
         var report = new KsitalReport
         {
+            SenderPhone = PhoneNumber.Normalize(senderPhone),
             Timestamp = timestamp ?? DateTime.UtcNow,
             RawText = rawText
         };
@@ -70,7 +87,7 @@ private static readonly Regex ErrorRegex = new(@"\b(?:ERR|АВАРИЯ|ОШИБ�
             report.MainPower = PowerState.Normal;
         }
 
-// 4. Анализ флагов и текста аварий ОВЕН
+        // 4. Анализ флагов и текста аварий ОВЕН
         var errMatch = ErrorRegex.Match(rawText);
         if (errMatch.Success)
         {

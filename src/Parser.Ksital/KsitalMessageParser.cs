@@ -1,32 +1,61 @@
+using System;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using KsitalTelemetryHub.Core;
 
 namespace KsitalTelemetryHub.Parser.Ksital;
 
-public static class KsitalMessageParser
+public class KsitalMessageParser : ITelemetryParser
 {
-    // Регулярные выражения для поиска параметров
-    private static readonly Regex TempRegex = new(@"T(?<index>\d+)\s*=\s*(?<val>[+-]?\d+(?:[\.,]\d+)?)", RegexOptions.IgnoreCase);
-    private static readonly Regex ZoneRegex = new(@"З(?<index>\d+)\s*:\s*(?<status>Норма|Сработка|Обрыв|Замыкание)", RegexOptions.IgnoreCase);
-    private static readonly Regex Power220Regex = new(@"220V\s*:\s*(?<val>Есть|Нет)", RegexOptions.IgnoreCase);
-    private static readonly Regex BatteryRegex = new(@"(?:Асс|Acc|АКБ)\s*:\s*(?<val>\d+(?:[\.,]\d+)?)V?", RegexOptions.IgnoreCase);
-    private static readonly Regex BalanceRegex = new(@"Баланс\s*:\s*(?<val>[+-]?\d+(?:[\.,]\d+)?)", RegexOptions.IgnoreCase);
-    private static readonly Regex AlarmKeywordRegex = new(@"(Тревога!|Авария!)(?<desc>.*)", RegexOptions.IgnoreCase);
+    private static readonly Regex TempRegex = new(@"T(?<index>\d+)\s*=\s*(?<val>[+-]?\d+(?:[\.,]\d+)?)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex ZoneRegex = new(@"З(?<index>\d+)\s*:\s*(?<status>Норма|Сработка|Обрыв|Замыкание)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex Power220Regex = new(@"220V\s*:\s*(?<val>Есть|Нет)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex BatteryRegex = new(@"(?:Асс|Acc|АКБ)\s*:\s*(?<val>\d+(?:[\.,]\d+)?)V?", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex BalanceRegex = new(@"Баланс\s*:\s*(?<val>[+-]?\d+(?:[\.,]\d+)?)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex AlarmKeywordRegex = new(@"(Тревога!|Авария!)(?<desc>.*)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    public DeviceType SupportedDeviceType => DeviceType.Ksital;
+
+    public bool CanParse(string rawText)
+    {
+        if (string.IsNullOrWhiteSpace(rawText)) return false;
+        return Power220Regex.IsMatch(rawText) ||
+               TempRegex.IsMatch(rawText) ||
+               ZoneRegex.IsMatch(rawText) ||
+               rawText.Contains("220V:", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("Кситал", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public TelemetrySnapshot Parse(string rawText, DateTime timestamp, string? senderPhone = null)
+    {
+        return ParseInternal(rawText, timestamp, senderPhone);
+    }
 
     public static KsitalReport Parse(DecodedSms sms)
     {
+        return (KsitalReport)ParseInternal(sms.Text, sms.Timestamp, sms.SenderNumber);
+    }
+
+    public static KsitalReport Parse(string rawText, DateTime? timestamp = null, string? senderPhone = null)
+    {
+        return (KsitalReport)ParseInternal(rawText, timestamp ?? DateTime.UtcNow, senderPhone);
+    }
+
+    private static KsitalReport ParseInternal(string rawText, DateTime timestamp, string? senderPhone)
+    {
         var report = new KsitalReport
         {
-            SenderPhone = sms.SenderNumber,
-            Timestamp = sms.Timestamp,
-            RawText = sms.Text
+            SenderPhone = PhoneNumber.Normalize(senderPhone),
+            Timestamp = timestamp,
+            RawText = rawText ?? string.Empty
         };
 
-        string text = sms.Text.Replace("\r", " ").Trim();
+        if (string.IsNullOrWhiteSpace(rawText)) return report;
+
+        string text = rawText.Replace("\r", " ").Trim();
         string[] lines = text.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
 
-        if (lines.Length > 0)
+        if (lines.Length > 0 && !lines[0].Contains(":") && !lines[0].Contains("="))
         {
             report.DeviceName = lines[0].Trim();
         }

@@ -13,6 +13,7 @@ public class AppDbContext : DbContext
     public DbSet<TemperatureRecord> Temperatures => Set<TemperatureRecord>();
     public DbSet<AlarmEvent> Alarms => Set<AlarmEvent>();
     public DbSet<OutgoingCommand> OutgoingCommands => Set<OutgoingCommand>();
+    public DbSet<SystemStatus> SystemStatus => Set<SystemStatus>();
 
     public AppDbContext(string dbPath = "telemetry.db")
     {
@@ -47,27 +48,37 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<OutgoingCommand>()
             .HasIndex(c => c.CreatedAt);
+
+        modelBuilder.Entity<SystemStatus>()
+            .HasKey(s => s.Id);
     }
 
-    public async Task SaveReportAsync(string senderPhone, KsitalReport report, CancellationToken cancellationToken = default)
+    public async Task SaveReportAsync(string? senderPhone, TelemetrySnapshot report, CancellationToken cancellationToken = default)
     {
-        string phone = !string.IsNullOrWhiteSpace(senderPhone)
-            ? senderPhone
-            : (!string.IsNullOrWhiteSpace(report.SenderPhone) ? report.SenderPhone : "+79000000000");
+        string rawPhone = !string.IsNullOrWhiteSpace(senderPhone) ? senderPhone : report.SenderPhone;
+        string cleanPhone = PhoneNumber.Normalize(rawPhone);
+        if (string.IsNullOrEmpty(cleanPhone))
+        {
+            cleanPhone = "+79000000000";
+        }
 
-        var obj = await Objects.FirstOrDefaultAsync(o => o.PhoneNumber == phone, cancellationToken);
+        var obj = await Objects.FirstOrDefaultAsync(o => o.PhoneNumber == cleanPhone, cancellationToken);
         if (obj == null)
         {
             obj = new MonitoredObject
             {
-                PhoneNumber = phone,
-                Name = string.IsNullOrWhiteSpace(report.DeviceName) ? $"Объект {phone}" : report.DeviceName,
+                PhoneNumber = cleanPhone,
+                Name = string.IsNullOrWhiteSpace(report.DeviceName) ? $"Объект {cleanPhone}" : report.DeviceName,
                 District = "Основной участок",
                 DeviceType = DeviceType.Ksital,
                 DevicePassword = "00000"
             };
             Objects.Add(obj);
             await SaveChangesAsync(cancellationToken);
+        }
+        else if (!string.IsNullOrWhiteSpace(report.DeviceName) && (string.IsNullOrWhiteSpace(obj.Name) || obj.Name.StartsWith("Объект ")))
+        {
+            obj.Name = report.DeviceName;
         }
 
         var record = new TelemetryRecord
@@ -119,9 +130,49 @@ public class AppDbContext : DbContext
         await SaveChangesAsync(cancellationToken);
     }
 
-    public Task SaveReportAsync(KsitalReport report, CancellationToken cancellationToken = default)
+    public Task SaveReportAsync(TelemetrySnapshot report, CancellationToken cancellationToken = default)
     {
         return SaveReportAsync(report.SenderPhone, report, cancellationToken);
+    }
+
+    public async Task UpdateWorkerHeartbeatAsync(
+        string portName, 
+        bool isModemConnected, 
+        int signalCsq = 0, 
+        string? operatorName = null, 
+        string? lastError = null, 
+        int newSmsProcessed = 0,
+        CancellationToken cancellationToken = default)
+    {
+        var status = await SystemStatus.FirstOrDefaultAsync(s => s.Id == 1, cancellationToken);
+        if (status == null)
+        {
+            status = new SystemStatus
+            {
+                Id = 1,
+                PortName = portName,
+                IsModemConnected = isModemConnected,
+                SignalStrengthCsq = signalCsq,
+                OperatorName = operatorName,
+                LastError = lastError,
+                LastHeartbeat = DateTime.UtcNow,
+                TotalSmsProcessed = newSmsProcessed
+            };
+            SystemStatus.Add(status);
+        }
+        else
+        {
+            status.PortName = portName;
+            status.IsWorkerAlive = true;
+            status.IsModemConnected = isModemConnected;
+            if (signalCsq > 0) status.SignalStrengthCsq = signalCsq;
+            if (!string.IsNullOrEmpty(operatorName)) status.OperatorName = operatorName;
+            status.LastError = lastError;
+            status.LastHeartbeat = DateTime.UtcNow;
+            status.TotalSmsProcessed += newSmsProcessed;
+        }
+
+        await SaveChangesAsync(cancellationToken);
     }
 
     public static void EnsureDatabaseUpdated(string dbPath)
@@ -143,6 +194,9 @@ public class AppDbContext : DbContext
 
             using var cmd = conn.CreateCommand();
 
+            cmd.CommandText = "ALTER TABLE Objects ADD COLUMN District TEXT NOT NULL DEFAULT 'Основной участок';";
+            try { cmd.ExecuteNonQuery(); } catch { }
+
             cmd.CommandText = "ALTER TABLE Objects ADD COLUMN DeviceType INTEGER NOT NULL DEFAULT 0;";
             try { cmd.ExecuteNonQuery(); } catch { }
 
@@ -162,7 +216,21 @@ public class AppDbContext : DbContext
                     ErrorMessage TEXT NULL,
                     FOREIGN KEY (MonitoredObjectId) REFERENCES Objects(Id) ON DELETE CASCADE
                 );";
-            cmd.ExecuteNonQuery();
+            try { cmd.ExecuteNonQuery(); } catch { }
+
+            cmd.CommandText = @"
+                CREATE TABLE IF NOT EXISTS SystemStatus (
+                    Id INTEGER PRIMARY KEY,
+                    PortName TEXT NOT NULL,
+                    IsWorkerAlive INTEGER NOT NULL DEFAULT 1,
+                    IsModemConnected INTEGER NOT NULL DEFAULT 0,
+                    SignalStrengthCsq INTEGER NOT NULL DEFAULT 0,
+                    OperatorName TEXT NULL,
+                    LastHeartbeat TEXT NOT NULL,
+                    LastError TEXT NULL,
+                    TotalSmsProcessed INTEGER NOT NULL DEFAULT 0
+                );";
+            try { cmd.ExecuteNonQuery(); } catch { }
         }
         catch { }
     }

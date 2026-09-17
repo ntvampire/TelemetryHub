@@ -16,6 +16,7 @@ public class Worker : BackgroundService
     private readonly int _baudRate;
     private readonly int _pollIntervalSec;
     private readonly string _dbPath;
+    private readonly TelemetryParserRegistry _parserRegistry;
 
     public Worker(ILogger<Worker> logger, IConfiguration configuration)
     {
@@ -26,15 +27,20 @@ public class Worker : BackgroundService
         _baudRate = _configuration.GetValue<int>("ModemSettings:BaudRate", 115200);
         _pollIntervalSec = _configuration.GetValue<int>("ModemSettings:PollIntervalSeconds", 10);
         _dbPath = _configuration.GetValue<string>("DatabaseSettings:DbPath") ?? "telemetry.db";
+
+        // Единый реестр парсеров для всех типов объектовых контроллеров
+        _parserRegistry = new TelemetryParserRegistry(new ITelemetryParser[]
+        {
+            new KsitalMessageParser(),
+            new Ccu825MessageParser(),
+            new OwenMessageParser()
+        });
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("Инициализация базы данных SQLite ({DbPath})...", _dbPath);
-        using (var initDb = new AppDbContext(_dbPath))
-        {
-            await initDb.Database.EnsureCreatedAsync(stoppingToken);
-        }
+        AppDbContext.EnsureDatabaseUpdated(_dbPath);
 
         _logger.LogInformation("Запуск сервиса мониторинга телеметрии. Порт: {Port}, Скорость: {Baud}", _portName, _baudRate);
 
@@ -44,17 +50,17 @@ public class Worker : BackgroundService
         {
             try
             {
-                // 1. Контроль подключения к модему
+                using var db = new AppDbContext(_dbPath);
+
+                // 1. Контроль подключения к аппаратному модему
                 if (modem == null || !modem.IsConnected)
                 {
-                    _logger.LogInformation("Попытка подключения к модему на {Port}...", _portName);
+                    _logger.LogInformation("Подключение к модему на порту {Port}...", _portName);
                     modem?.Dispose();
                     modem = new GsmModemClient(_portName, _baudRate);
                     modem.Connect();
                     _logger.LogInformation("Модем успешно подключен.");
                 }
-
-                using var db = new AppDbContext(_dbPath);
 
                 // 2. Отправка очереди исходящих команд оператора
                 await ProcessOutgoingCommandsAsync(modem, db, stoppingToken);
@@ -68,47 +74,60 @@ public class Worker : BackgroundService
 
                     foreach (var sms in messages)
                     {
-                        _logger.LogInformation("Обработка SMS от {Phone}: \"{Text}\"", sms.SenderNumber, sms.Text);
+                        string cleanPhone = PhoneNumber.Normalize(sms.SenderNumber);
+                        _logger.LogInformation("Обработка SMS от {Phone}: \"{Text}\"", cleanPhone, sms.Text);
 
-                        // Определение типа контроллера по номеру телефона в базе
-                        var obj = await db.Objects.FirstOrDefaultAsync(o => o.PhoneNumber == sms.SenderNumber, stoppingToken);
-                        var devType = obj?.DeviceType ?? DeviceType.Ksital;
+                        // Поиск объекта в базе по нормализованному номеру телефона
+                        var obj = await db.Objects.FirstOrDefaultAsync(o => o.PhoneNumber == cleanPhone, stoppingToken);
 
-                        KsitalReport report = devType switch
+                        // Разрешение парсера (по типу объекта из БД либо по структуре текста)
+                        var parser = _parserRegistry.Resolve(sms.Text, obj?.DeviceType);
+                        var snapshot = parser.Parse(sms.Text, sms.Timestamp, cleanPhone);
+
+                        if (obj != null)
                         {
-                            DeviceType.Ccu825 => new Ccu825MessageParser().Parse(sms.Text, sms.Timestamp),
-                            DeviceType.OwenPlc => new OwenMessageParser().Parse(sms.Text, sms.Timestamp),
-                            _ => KsitalMessageParser.Parse(sms)
-                        };
+                            snapshot.DeviceName = obj.Name;
+                        }
 
-                        report.SenderPhone = sms.SenderNumber;
-                        if (obj != null) report.DeviceName = obj.Name;
+                        // Сохранение снимка телеметрии и фиксация тревог
+                        await db.SaveReportAsync(cleanPhone, snapshot, stoppingToken);
 
-                        // Сохранение отчета в базу
-                        await db.SaveReportAsync(report, stoppingToken);
-
-                        if (report.IsAlarm)
+                        if (snapshot.IsAlarm)
                         {
                             _logger.LogWarning("!!! ТРЕВОГА по объекту {Obj} ({Phone}): {Desc}", 
-                                report.DeviceName, report.SenderPhone, report.AlarmDescription);
+                                snapshot.DeviceName, cleanPhone, snapshot.AlarmDescription);
                         }
                         else
                         {
-                            _logger.LogInformation("Отчет сохранен: [{Dev}] Объектов={Obj}, T1={T1}, T2={T2}, 220V={Pwr}",
-                                devType,
-                                report.DeviceName,
-                                report.Temperatures.GetValueOrDefault("T1"),
-                                report.Temperatures.GetValueOrDefault("T2"),
-                                report.MainPower);
+                            _logger.LogInformation("Телеметрия сохранена: [{Dev}] Объект={Obj}, 220V={Pwr}",
+                                parser.SupportedDeviceType, snapshot.DeviceName, snapshot.MainPower);
                         }
                     }
                 }
+
+                // 4. Обновление системного Heartbeat для UI (без коллизий COM-порта)
+                await db.UpdateWorkerHeartbeatAsync(
+                    portName: _portName,
+                    isModemConnected: true,
+                    newSmsProcessed: messages.Count,
+                    cancellationToken: stoppingToken);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Ошибка опроса модема или обработки данных. Повторная попытка через {Sec} сек...", _pollIntervalSec);
+                _logger.LogError(ex, "Ошибка цикла опроса модема. Порт {Port}. Повтор через {Sec} сек...", _portName, _pollIntervalSec);
                 modem?.Dispose();
                 modem = null;
+
+                try
+                {
+                    using var db = new AppDbContext(_dbPath);
+                    await db.UpdateWorkerHeartbeatAsync(
+                        portName: _portName,
+                        isModemConnected: false,
+                        lastError: ex.Message,
+                        cancellationToken: stoppingToken);
+                }
+                catch { }
             }
 
             await Task.Delay(TimeSpan.FromSeconds(_pollIntervalSec), stoppingToken);
@@ -132,9 +151,10 @@ public class Worker : BackgroundService
             {
                 if (ct.IsCancellationRequested) break;
 
-                _logger.LogInformation("Отправка SMS-команды #{Id} на {Phone}: \"{Payload}\"", cmd.Id, cmd.PhoneNumber, cmd.RawPayload);
+                string cleanPhone = PhoneNumber.Normalize(cmd.PhoneNumber);
+                _logger.LogInformation("Отправка SMS-команды #{Id} на {Phone}: \"{Payload}\"", cmd.Id, cleanPhone, cmd.RawPayload);
 
-                bool success = modem.SendSms(cmd.PhoneNumber, cmd.RawPayload);
+                bool success = modem.SendSms(cleanPhone, cmd.RawPayload);
 
                 if (success)
                 {

@@ -148,21 +148,27 @@ public partial class MainWindow : Window
         bool modemOk = false;
         string port = _currentPort;
 
-        await Task.Run(() =>
+        try
         {
-            try
+            using var db = new AppDbContext(_dbPath);
+            var status = await db.SystemStatus.FirstOrDefaultAsync(s => s.Id == 1);
+            if (status != null && (DateTime.UtcNow - status.LastHeartbeat).TotalSeconds < 30)
+            {
+                comOk = true;
+                modemOk = status.IsModemConnected;
+                port = status.PortName;
+            }
+            else
             {
                 var ports = SerialPort.GetPortNames();
-                if (ports.Contains(port))
-                {
-                    comOk = true;
-                    using var client = new GsmModemClient(port, 115200);
-                    client.Connect();
-                    if (client.SendCommand("AT").Contains("OK")) modemOk = true;
-                }
+                comOk = ports.Contains(port);
             }
-            catch { }
-        });
+        }
+        catch
+        {
+            var ports = SerialPort.GetPortNames();
+            comOk = ports.Contains(port);
+        }
 
         Dispatcher.Invoke(() =>
         {
@@ -170,7 +176,7 @@ public partial class MainWindow : Window
             TxtComStatus.Text = comOk ? $"COM: {port}" : $"COM: {port} (Нет)";
 
             LedModem.Fill = new SolidColorBrush(modemOk ? Color.FromRgb(166, 227, 161) : Color.FromRgb(243, 139, 168));
-            TxtModemStatus.Text = modemOk ? "Модем: ОК" : "Модем: Нет";
+            TxtModemStatus.Text = modemOk ? "Модем: ОК" : "Модем: Ожидание";
         });
     }
 
