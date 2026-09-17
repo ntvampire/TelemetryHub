@@ -221,7 +221,6 @@ public partial class MainViewModel : ObservableObject
         await RefreshDataAsync();
     }
 
-    [RelayCommand]
     public async Task EnqueueCommandAsync(int objectId, string rawPayload, string description)
     {
         using var db = new AppDbContext(_dbPath);

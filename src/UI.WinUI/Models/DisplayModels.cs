@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using KsitalTelemetryHub.Core;
+using KsitalTelemetryHub.Storage.Sqlite;
 
 namespace KsitalTelemetryHub.UI.WinUI.Models;
 
