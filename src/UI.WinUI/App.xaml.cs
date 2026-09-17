@@ -11,6 +11,7 @@ public partial class App : Application
 
     public App()
     {
+        LogCrash("App.ctor", new Exception("App constructor called"));
         this.InitializeComponent();
 
         AppDomain.CurrentDomain.UnhandledException += (s, e) =>
@@ -28,14 +29,15 @@ public partial class App : Application
     {
         try
         {
-            var logFile = Path.Combine(AppContext.BaseDirectory, "winui_crash.log");
-            File.AppendAllText(logFile, $"[{DateTime.Now}] {source}: {ex?.ToString() ?? "Unknown exception"}\n\n");
+            var logFile = Path.Combine(AppContext.BaseDirectory, "startup.log");
+            File.AppendAllText(logFile, $"[{DateTime.Now}] {source}: {ex?.ToString() ?? "null"}\n");
         }
         catch { }
     }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        LogCrash("OnLaunched.Enter", new Exception("OnLaunched entered"));
         try
         {
             // Поиск БД рядом с исполняемым файлом или в рабочем каталоге
