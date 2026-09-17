@@ -25,7 +25,7 @@ public partial class AlarmsPage : Page
 
     private async void BtnAcknowledge_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button btn && btn.Tag is int alarmId)
+        if (sender is Button btn && btn.Tag is long alarmId)
         {
             await ViewModel.AcknowledgeAlarmAsync(alarmId);
         }

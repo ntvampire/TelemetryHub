@@ -84,7 +84,7 @@ public class ObjectDetailsDialog : ContentDialog
     {
         try
         {
-            var phoneObj = PhoneNumber.Parse(_txtPhone.Text.Trim());
+            var phoneObj = new PhoneNumber(_txtPhone.Text.Trim());
             using var db = new AppDbContext(App.DatabasePath);
 
             if (_isNew)
@@ -94,8 +94,7 @@ public class ObjectDetailsDialog : ContentDialog
                     Name = _txtName.Text.Trim(),
                     PhoneNumber = phoneObj.Value,
                     District = _txtDistrict.Text.Trim(),
-                    DeviceType = (DeviceType)_cmbType.SelectedIndex,
-                    CreatedAt = DateTime.UtcNow
+                    DeviceType = (DeviceType)_cmbType.SelectedIndex
                 };
                 db.Objects.Add(newObj);
             }

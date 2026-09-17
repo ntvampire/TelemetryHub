@@ -196,7 +196,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public async Task AcknowledgeAlarmAsync(int alarmId)
+    public async Task AcknowledgeAlarmAsync(long alarmId)
     {
         using var db = new AppDbContext(_dbPath);
         var alarm = await db.Alarms.FirstOrDefaultAsync(a => a.Id == alarmId);

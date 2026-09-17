@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using KsitalTelemetryHub.Core;
 using KsitalTelemetryHub.Storage.Sqlite;
 
@@ -15,8 +16,8 @@ public class ObjectDisplayItem
     public string DeviceTypeName => DeviceType switch
     {
         DeviceType.Ksital => "КСИТАЛ GSM",
-        DeviceType.RadsCCU => "CCU-825",
-        DeviceType.OvenPLC => "ОВЕН ПЛК",
+        DeviceType.Ccu825 => "CCU-825",
+        DeviceType.OwenPlc => "ОВЕН ПЛК",
         _ => "Контроллер"
     };
 
@@ -46,7 +47,7 @@ public class ObjectDisplayItem
 
 public class AlarmDisplayItem
 {
-    public int Id { get; set; }
+    public long Id { get; set; }
     public int MonitoredObjectId { get; set; }
     public string ObjectName { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
@@ -58,7 +59,7 @@ public class AlarmDisplayItem
 
 public class OutgoingCommandDisplayItem
 {
-    public int Id { get; set; }
+    public long Id { get; set; }
     public int MonitoredObjectId { get; set; }
     public string ObjectName { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
@@ -72,7 +73,6 @@ public class OutgoingCommandDisplayItem
     public string StatusText => Status switch
     {
         CommandStatus.Pending => "В очереди",
-        CommandStatus.Sending => "Отправляется...",
         CommandStatus.Sent => "Отправлена",
         CommandStatus.Failed => "Ошибка отправки",
         _ => "Неизвестно"
