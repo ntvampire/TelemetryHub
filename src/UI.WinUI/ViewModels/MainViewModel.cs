@@ -33,13 +33,19 @@ public partial class MainViewModel : ObservableObject
     private string _comPortStatus = "COM: Ожидание";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ComStatusColor))]
     private bool _isComConnected;
+
+    public string ComStatusColor => IsComConnected ? "#2ECC71" : "#E74C3C";
 
     [ObservableProperty]
     private string _modemStatus = "Модем: Ожидание";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ModemStatusColor))]
     private bool _isModemConnected;
+
+    public string ModemStatusColor => IsModemConnected ? "#2ECC71" : "#E74C3C";
 
     [ObservableProperty]
     private int _unacknowledgedAlarmsCount;
