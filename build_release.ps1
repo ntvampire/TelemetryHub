@@ -14,9 +14,9 @@ if (Test-Path $distRoot) {
 }
 New-Item -ItemType Directory -Path $distDir -Force | Out-Null
 
-Write-Host "1/4. Publish UI.Desktop (win-x64)..." -ForegroundColor Yellow
-$uiProj = Join-Path $PSScriptRoot "src\UI.Desktop\UI.Desktop.csproj"
-dotnet publish $uiProj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o $distDir
+Write-Host "1/4. Publish UI.WinUI (win-x64)..." -ForegroundColor Yellow
+$uiProj = Join-Path $PSScriptRoot "src\UI.WinUI\UI.WinUI.csproj"
+dotnet publish $uiProj -c Release -r win-x64 -p:Platform=x64 --self-contained true -p:PublishSingleFile=false -o $distDir
 
 Write-Host "2/4. Publish Service.Worker (win-x64)..." -ForegroundColor Yellow
 $workerDir = Join-Path $distDir "WorkerService"

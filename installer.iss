@@ -3,7 +3,7 @@
   #define MyAppVersion "1.0.0"
 #endif
 #define MyAppPublisher "NTVampire"
-#define MyAppExeName "UI.Desktop.exe"
+#define MyAppExeName "KsitalTelemetryHub.UI.WinUI.exe"
 
 [Setup]
 AppId={{D38F2B7E-7F2A-4B2E-8F12-892D98D1C765}

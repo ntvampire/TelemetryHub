@@ -47,8 +47,8 @@ if ([string]::IsNullOrWhiteSpace($Notes)) {
     $Notes = "Плановое обновление системы ($Type) $nextTag"
 }
 
-# Обновляем версию в UI.Desktop.csproj
-$projPath = "src\UI.Desktop\UI.Desktop.csproj"
+# Обновляем версию в UI.WinUI.csproj
+$projPath = "src\UI.WinUI\UI.WinUI.csproj"
 $projXml = [xml](Get-Content $projPath -Raw)
 $verNode = $projXml.SelectSingleNode("//Version")
 if ($verNode) {

@@ -26,7 +26,7 @@ sc start KsitalTelemetryWorker
 echo.
 echo [2/2] Создание ярлыка на Рабочем столе...
 set "SHORTCUT=%USERPROFILE%\Desktop\Telemetry Hub.lnk"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut($env:SHORTCUT); $s.TargetPath = '%APP_DIR%UI.Desktop.exe'; $s.WorkingDirectory = '%APP_DIR%'; $s.Save()"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut($env:SHORTCUT); $s.TargetPath = '%APP_DIR%KsitalTelemetryHub.UI.WinUI.exe'; $s.WorkingDirectory = '%APP_DIR%'; $s.Save()"
 
 echo.
 echo ========================================================
