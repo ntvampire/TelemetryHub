@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
@@ -32,6 +32,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Parser.Owen", "src\Parser.Owen\Parser.Owen.csproj", "{6DDC80A7-7959-4161-B1CB-FCBFA4DAF1C8}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Parser.Owen.Tests", "tests\Parser.Owen.Tests\Parser.Owen.Tests.csproj", "{FD659C0C-130B-4837-83EF-E9C2963494CC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UI.WinUI", "src\UI.WinUI\UI.WinUI.csproj", "{A3184CF1-6A73-45B0-BEA7-6D19C45B721A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -94,6 +96,10 @@ Global
 		{FD659C0C-130B-4837-83EF-E9C2963494CC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FD659C0C-130B-4837-83EF-E9C2963494CC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FD659C0C-130B-4837-83EF-E9C2963494CC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A3184CF1-6A73-45B0-BEA7-6D19C45B721A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A3184CF1-6A73-45B0-BEA7-6D19C45B721A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A3184CF1-6A73-45B0-BEA7-6D19C45B721A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A3184CF1-6A73-45B0-BEA7-6D19C45B721A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{EF8365DD-631F-4FF3-9FC8-E427E895C15F} = {F6822A34-7C2B-44B6-8145-DCDE389A6BC6}
@@ -109,5 +115,6 @@ Global
 		{096FA10E-5F09-4663-8A2F-B9D503E5A0C7} = {60F11AD2-BF3F-4226-9D41-ECB8F93B27D8}
 		{6DDC80A7-7959-4161-B1CB-FCBFA4DAF1C8} = {F6822A34-7C2B-44B6-8145-DCDE389A6BC6}
 		{FD659C0C-130B-4837-83EF-E9C2963494CC} = {60F11AD2-BF3F-4226-9D41-ECB8F93B27D8}
+		{A3184CF1-6A73-45B0-BEA7-6D19C45B721A} = {F6822A34-7C2B-44B6-8145-DCDE389A6BC6}
 	EndGlobalSection
 EndGlobal

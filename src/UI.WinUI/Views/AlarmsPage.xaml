@@ -1,0 +1,72 @@
+<Page
+    x:Class="KsitalTelemetryHub.UI.WinUI.Views.AlarmsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:KsitalTelemetryHub.UI.WinUI.Models">
+
+    <Grid Padding="24" RowSpacing="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Top Actions -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                <FontIcon Glyph="&#xE7BA;" Foreground="{ThemeResource SystemFillColorCriticalBrush}"/>
+                <TextBlock Text="Журнал активных аварий и тревог" FontSize="18" FontWeight="SemiBold"/>
+                <InfoBadge Value="{x:Bind ViewModel.UnacknowledgedAlarmsCount, Mode=OneWay}" Style="{ThemeResource AttentionValueInfoBadgeStyle}"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button Content="Квитировать все" Command="{x:Bind ViewModel.AcknowledgeAllAlarmsCommand}"/>
+                <Button Content="Обновить" Command="{x:Bind ViewModel.RefreshDataCommand}"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Alarms List -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{x:Bind ViewModel.ActiveAlarms, Mode=OneWay}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="models:AlarmDisplayItem">
+                        <Border
+                            Background="{ThemeResource LayerFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource SystemFillColorCriticalBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Margin="0,0,0,10"
+                            Padding="16">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="220"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <FontIcon Grid.Column="0" Glyph="&#xE783;" Foreground="{ThemeResource SystemFillColorCriticalBrush}" VerticalAlignment="Center"/>
+
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{x:Bind ObjectName}" FontWeight="SemiBold" FontSize="15"/>
+                                    <TextBlock Text="{x:Bind PhoneNumber}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12"/>
+                                    <TextBlock Text="{x:Bind Timestamp}" Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="11"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                    <TextBlock Text="{x:Bind Description}" FontSize="14" FontWeight="Medium" TextWrapping="Wrap"/>
+                                </StackPanel>
+
+                                <Button Grid.Column="3" Content="Квитировать" Click="BtnAcknowledge_Click" Tag="{x:Bind Id}" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </Grid>
+</Page>
