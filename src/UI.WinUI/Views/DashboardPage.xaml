@@ -76,14 +76,14 @@
                                 <!-- Column 2: 220V Status -->
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                     <TextBlock Text="Электросеть" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="11"/>
-                                    <TextBlock Text="{x:Bind PowerStatusText}" FontWeight="Bold" FontSize="14" Foreground="{x:Bind StatusBadgeColor}"/>
+                                    <TextBlock Text="{x:Bind PowerStatusText}" FontWeight="Bold" FontSize="14" Foreground="{x:Bind StatusBadgeBrush}"/>
                                     <TextBlock Text="{x:Bind BatteryVoltage, Mode=OneWay}" Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="12"/>
                                 </StackPanel>
 
                                 <!-- Column 3: Alarm Status -->
                                 <StackPanel Grid.Column="2" VerticalAlignment="Center">
                                     <TextBlock Text="Статус" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="11"/>
-                                    <TextBlock Text="{x:Bind AlarmDescription, Mode=OneWay}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" FontSize="12" Foreground="{x:Bind StatusBadgeColor}"/>
+                                    <TextBlock Text="{x:Bind AlarmDescription, Mode=OneWay}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" FontSize="12" Foreground="{x:Bind StatusBadgeBrush}"/>
                                 </StackPanel>
 
                                 <!-- Column 4: Temperatures -->

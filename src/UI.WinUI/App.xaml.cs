@@ -31,6 +31,8 @@ public partial class App : Application
         {
             var logFile = Path.Combine(AppContext.BaseDirectory, "startup.log");
             File.AppendAllText(logFile, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {message}{Environment.NewLine}");
+            var tempLog = Path.Combine(Path.GetTempPath(), "telemetry_startup.log");
+            File.AppendAllText(tempLog, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {message}{Environment.NewLine}");
         }
         catch { }
     }
@@ -41,6 +43,8 @@ public partial class App : Application
         {
             var logFile = Path.Combine(AppContext.BaseDirectory, "startup.log");
             File.AppendAllText(logFile, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [ERROR] {source}: {ex?.ToString() ?? "null"}{Environment.NewLine}");
+            var tempLog = Path.Combine(Path.GetTempPath(), "telemetry_startup.log");
+            File.AppendAllText(tempLog, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [ERROR] {source}: {ex?.ToString() ?? "null"}{Environment.NewLine}");
         }
         catch { }
     }
@@ -51,17 +55,23 @@ public partial class App : Application
         try
         {
             // Поиск БД рядом с исполняемым файлом или в рабочем каталоге
-            if (!File.Exists(DatabasePath))
+            var appDir = System.AppContext.BaseDirectory;
+            var localDb = Path.Combine(appDir, "telemetry.db");
+            if (File.Exists(localDb))
             {
-                var appDir = System.AppContext.BaseDirectory;
-                var localDb = Path.Combine(appDir, "telemetry.db");
-                if (File.Exists(localDb))
-                {
-                    DatabasePath = localDb;
-                }
+                DatabasePath = localDb;
+            }
+            else
+            {
+                DatabasePath = Path.GetFullPath(DatabasePath);
             }
 
+            // Гарантируем актуальность структуры и таблиц БД
+            Storage.Sqlite.AppDbContext.EnsureDatabaseUpdated(DatabasePath);
+
+            Log("Creating MainWindow...");
             MainWindowInstance = new MainWindow();
+            Log("MainWindow created. Activating...");
             MainWindowInstance.Activate();
             Log("MainWindow activated successfully");
         }

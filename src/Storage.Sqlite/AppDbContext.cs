@@ -1,3 +1,4 @@
+using System.IO;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using KsitalTelemetryHub.Core;
@@ -24,7 +25,7 @@ public class AppDbContext : DbContext
     {
         var csb = new SqliteConnectionStringBuilder
         {
-            DataSource = _dbPath,
+            DataSource = Path.GetFullPath(_dbPath),
             Mode = SqliteOpenMode.ReadWriteCreate,
             Cache = SqliteCacheMode.Shared,
             DefaultTimeout = 5 // Ожидание снятия блокировки до 5 секунд против ошибок "database is locked"

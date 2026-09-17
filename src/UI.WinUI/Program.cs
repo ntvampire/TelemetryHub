@@ -66,7 +66,7 @@ public static class Program
             // Log WinRT or XAML initialization failures
             if (e.Exception is not OperationCanceledException && e.Exception is not TaskCanceledException)
             {
-                WriteLog($"[FirstChanceException] {e.Exception.GetType().Name}: {e.Exception.Message}");
+                WriteLog($"[FirstChanceException] {e.Exception}");
             }
         };
 

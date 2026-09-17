@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.UI.Xaml.Media;
+using Windows.UI;
 using KsitalTelemetryHub.Core;
 using KsitalTelemetryHub.Storage.Sqlite;
 
@@ -8,6 +10,10 @@ namespace KsitalTelemetryHub.UI.WinUI.Models;
 
 public class ObjectDisplayItem
 {
+    public static readonly SolidColorBrush RedBrush = new(Color.FromArgb(255, 0xE7, 0x4C, 0x3C));
+    public static readonly SolidColorBrush YellowBrush = new(Color.FromArgb(255, 0xF3, 0x9C, 0x12));
+    public static readonly SolidColorBrush GreenBrush = new(Color.FromArgb(255, 0x2E, 0xCC, 0x71));
+
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
@@ -43,6 +49,10 @@ public class ObjectDisplayItem
     public string StatusBadgeColor => HasActiveAlarm 
         ? "#E74C3C" 
         : (MainPower == PowerState.Off ? "#F39C12" : "#2ECC71");
+
+    public SolidColorBrush StatusBadgeBrush => HasActiveAlarm 
+        ? RedBrush 
+        : (MainPower == PowerState.Off ? YellowBrush : GreenBrush);
 }
 
 public class AlarmDisplayItem

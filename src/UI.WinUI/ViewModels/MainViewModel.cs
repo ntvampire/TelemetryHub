@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.UI.Xaml.Media;
 using KsitalTelemetryHub.Core;
 using KsitalTelemetryHub.Storage.Sqlite;
 using KsitalTelemetryHub.UI.WinUI.Models;
@@ -34,18 +35,22 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ComStatusColor))]
+    [NotifyPropertyChangedFor(nameof(ComStatusBrush))]
     private bool _isComConnected;
 
     public string ComStatusColor => IsComConnected ? "#2ECC71" : "#E74C3C";
+    public SolidColorBrush ComStatusBrush => IsComConnected ? ObjectDisplayItem.GreenBrush : ObjectDisplayItem.RedBrush;
 
     [ObservableProperty]
     private string _modemStatus = "Модем: Ожидание";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ModemStatusColor))]
+    [NotifyPropertyChangedFor(nameof(ModemStatusBrush))]
     private bool _isModemConnected;
 
     public string ModemStatusColor => IsModemConnected ? "#2ECC71" : "#E74C3C";
+    public SolidColorBrush ModemStatusBrush => IsModemConnected ? ObjectDisplayItem.GreenBrush : ObjectDisplayItem.RedBrush;
 
     [ObservableProperty]
     private int _unacknowledgedAlarmsCount;
