@@ -15,6 +15,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         this.InitializeComponent();
+        this.Title = "Telemetry Hub";
         ViewModel = new MainViewModel();
         RootGrid.DataContext = ViewModel;
 

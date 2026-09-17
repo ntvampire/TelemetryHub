@@ -12,7 +12,7 @@ namespace KsitalTelemetryHub.UI.WinUI;
 public static class Program
 {
     private static readonly string BaseLog = Path.Combine(AppContext.BaseDirectory, "startup.log");
-    private static readonly string TempLog = Path.Combine(Path.GetTempPath(), "ksital_startup.log");
+    private static readonly string TempLog = Path.Combine(Path.GetTempPath(), "telemetry_startup.log");
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool AttachConsole(int dwProcessId);
@@ -27,8 +27,8 @@ public static class Program
     public static void WriteLog(string msg)
     {
         Console.WriteLine(msg);
-        try { File.AppendAllText(BaseLog, msg + Environment.NewLine); } catch { }
-        try { File.AppendAllText(TempLog, msg + Environment.NewLine); } catch { }
+        try { File.AppendAllText(BaseLog, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {msg}{Environment.NewLine}"); } catch { }
+        try { File.AppendAllText(TempLog, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {msg}{Environment.NewLine}"); } catch { }
     }
 
     [DllImport("Microsoft.ui.xaml.dll")]
@@ -53,8 +53,8 @@ public static class Program
         }
         catch { }
 
-        WriteLog(">>> KsitalTelemetryHub Program.Main entered! <<<");
-        WriteLog($"[{DateTime.Now}] Starting with args: {string.Join(" ", args)}");
+        WriteLog(">>> Telemetry Hub Program.Main entered! <<<");
+        WriteLog($"Starting with args: {string.Join(" ", args)}");
 
         AppDomain.CurrentDomain.UnhandledException += (s, e) =>
         {

@@ -206,18 +206,17 @@ exit
                         {
                             if (!string.IsNullOrWhiteSpace(target.Name)) existing.Name = target.Name;
                             if (!string.IsNullOrWhiteSpace(target.District)) existing.District = target.District;
-                            if (Enum.TryParse<DeviceType>(target.DeviceType, true, out var dt)) existing.DeviceType = dt;
+                            existing.DeviceType = target.DeviceType;
                             if (!string.IsNullOrWhiteSpace(target.Password)) existing.DevicePassword = target.Password;
                         }
                         else
                         {
-                            Enum.TryParse<DeviceType>(target.DeviceType, true, out var dt);
                             db.Objects.Add(new MonitoredObject
                             {
                                 Name = string.IsNullOrWhiteSpace(target.Name) ? $"Объект {cleanPhone}" : target.Name,
                                 PhoneNumber = cleanPhone,
                                 District = string.IsNullOrWhiteSpace(target.District) ? "Основной участок" : target.District,
-                                DeviceType = dt,
+                                DeviceType = target.DeviceType,
                                 DevicePassword = string.IsNullOrWhiteSpace(target.Password) ? "00000" : target.Password
                             });
                         }
@@ -258,7 +257,7 @@ exit
                             District = o.District,
                             Name = o.Name,
                             PhoneNumber = o.PhoneNumber,
-                            DeviceType = o.DeviceType.ToString(),
+                            DeviceType = o.DeviceType,
                             Password = o.DevicePassword
                         })
                         .ToList();

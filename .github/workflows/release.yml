@@ -59,7 +59,7 @@ jobs:
           tag_name: ${{ steps.get_tag_info.outputs.TAG }}
           name: Релиз ${{ steps.get_tag_info.outputs.TAG }}
           body_path: release_notes.txt
-          files: dist/ksital-hub-setup-*.exe
+          files: dist/*setup-*.exe
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

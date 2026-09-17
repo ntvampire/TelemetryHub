@@ -195,9 +195,10 @@ public partial class MainViewModel : ObservableObject
 
             CommandQueue = new ObservableCollection<OutgoingCommandDisplayItem>(cmdDisplays);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Устойчивость к транзиентным ошибкам доступа SQLite
+            System.Diagnostics.Debug.WriteLine($"[MainViewModel.RefreshDataAsync] Ошибка обновления данных: {ex.Message}");
+            App.LogError("MainViewModel.RefreshDataAsync", ex);
         }
     }
 

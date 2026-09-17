@@ -1,11 +1,11 @@
-# Ksital Telemetry Hub (WinUI 3) CLI Runner
+# Telemetry Hub (WinUI 3) CLI Runner
 param(
     [switch]$RunWorker = $false
 )
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "=== Ksital Telemetry Hub (WinUI 3) CLI Runner ===" -ForegroundColor Cyan
+Write-Host "=== Telemetry Hub (WinUI 3) CLI Runner ===" -ForegroundColor Cyan
 
 $winUiProj = Join-Path $PSScriptRoot "src\UI.WinUI\UI.WinUI.csproj"
 $workerProj = Join-Path $PSScriptRoot "src\Service.Worker\Service.Worker.csproj"
@@ -37,10 +37,21 @@ if ($RunWorker) {
 }
 
 Write-Host "4. Starting WinUI 3 Application..." -ForegroundColor Green
-$winUiDir = Join-Path $PSScriptRoot "src\UI.WinUI\bin\x64\Debug\net8.0-windows10.0.19041.0\win-x64"
-$winUiExe = Join-Path $winUiDir "KsitalTelemetryHub.UI.WinUI.exe"
+$candidateDirs = @(
+    (Join-Path $PSScriptRoot "src\UI.WinUI\bin\x64\Debug\net8.0-windows10.0.19041.0\win-x64"),
+    (Join-Path $PSScriptRoot "src\UI.WinUI\bin\Debug\net8.0-windows10.0.19041.0\win-x64")
+)
 
-if (Test-Path $winUiExe) {
+$winUiExe = $null
+$winUiDir = $null
+foreach ($dir in $candidateDirs) {
+    $exe1 = Join-Path $dir "KsitalTelemetryHub.UI.WinUI.exe"
+    $exe2 = Join-Path $dir "UI.WinUI.exe"
+    if (Test-Path $exe1) { $winUiExe = $exe1; $winUiDir = $dir; break }
+    if (Test-Path $exe2) { $winUiExe = $exe2; $winUiDir = $dir; break }
+}
+
+if ($winUiExe -and (Test-Path $winUiExe)) {
     Write-Host "Launching: $winUiExe" -ForegroundColor DarkGray
     Start-Process -FilePath $winUiExe -WorkingDirectory $winUiDir
 } else {

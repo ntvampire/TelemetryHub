@@ -1,4 +1,4 @@
-#define MyAppName "КСИТАЛ Telemetry Hub"
+#define MyAppName "Telemetry Hub"
 #ifndef MyAppVersion
   #define MyAppVersion "1.0.0"
 #endif
@@ -14,7 +14,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=dist
-OutputBaseFilename=ksital-hub-setup-v{#MyAppVersion}
+OutputBaseFilename=telemetry-hub-setup-v{#MyAppVersion}
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -42,7 +42,7 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 ; Настройка и запуск системной службы Windows Service после завершения копирования
 Filename: "{sys}\sc.exe"; Parameters: "stop KsitalTelemetryWorker"; Flags: runhidden
 Filename: "{sys}\sc.exe"; Parameters: "delete KsitalTelemetryWorker"; Flags: runhidden
-Filename: "{sys}\sc.exe"; Parameters: "create KsitalTelemetryWorker binPath= """"{app}\WorkerService\Service.Worker.exe"""" start= auto DisplayName= ""КСИТАЛ GSM - Сервис сбора данных"""; Flags: runhidden
+Filename: "{sys}\sc.exe"; Parameters: "create KsitalTelemetryWorker binPath= """"{app}\WorkerService\Service.Worker.exe"""" start= auto DisplayName= ""Telemetry Hub - Сервис сбора данных"""; Flags: runhidden
 Filename: "{sys}\sc.exe"; Parameters: "failure KsitalTelemetryWorker reset= 60 actions= restart/5000/restart/5000/restart/5000"; Flags: runhidden
 Filename: "{sys}\sc.exe"; Parameters: "start KsitalTelemetryWorker"; Flags: runhidden
 

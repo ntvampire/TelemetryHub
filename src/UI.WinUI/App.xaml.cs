@@ -11,33 +11,43 @@ public partial class App : Application
 
     public App()
     {
-        LogCrash("App.ctor", new Exception("App constructor called"));
+        Log("App initializing...");
         this.InitializeComponent();
 
         AppDomain.CurrentDomain.UnhandledException += (s, e) =>
         {
-            LogCrash("AppDomain.UnhandledException", e.ExceptionObject as Exception);
+            LogError("AppDomain.UnhandledException", e.ExceptionObject as Exception);
         };
 
         this.UnhandledException += (s, e) =>
         {
-            LogCrash("Application.UnhandledException", e.Exception);
+            LogError("Application.UnhandledException", e.Exception);
         };
     }
 
-    private static void LogCrash(string source, Exception? ex)
+    public static void Log(string message)
     {
         try
         {
             var logFile = Path.Combine(AppContext.BaseDirectory, "startup.log");
-            File.AppendAllText(logFile, $"[{DateTime.Now}] {source}: {ex?.ToString() ?? "null"}\n");
+            File.AppendAllText(logFile, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {message}{Environment.NewLine}");
+        }
+        catch { }
+    }
+
+    public static void LogError(string source, Exception? ex)
+    {
+        try
+        {
+            var logFile = Path.Combine(AppContext.BaseDirectory, "startup.log");
+            File.AppendAllText(logFile, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [ERROR] {source}: {ex?.ToString() ?? "null"}{Environment.NewLine}");
         }
         catch { }
     }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        LogCrash("OnLaunched.Enter", new Exception("OnLaunched entered"));
+        Log("OnLaunched entered");
         try
         {
             // Поиск БД рядом с исполняемым файлом или в рабочем каталоге
@@ -53,10 +63,11 @@ public partial class App : Application
 
             MainWindowInstance = new MainWindow();
             MainWindowInstance.Activate();
+            Log("MainWindow activated successfully");
         }
         catch (Exception ex)
         {
-            LogCrash("OnLaunched", ex);
+            LogError("OnLaunched", ex);
             throw;
         }
     }

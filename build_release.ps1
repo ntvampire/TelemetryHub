@@ -4,7 +4,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "=== Build Ksital Hub v$Version ===" -ForegroundColor Cyan
+Write-Host "=== Build Telemetry Hub v$Version ===" -ForegroundColor Cyan
 
 $distDir = Join-Path $PSScriptRoot "dist\ksital-hub"
 $distRoot = Join-Path $PSScriptRoot "dist"
@@ -43,7 +43,7 @@ if (-not $isccCandidates) {
     $issFile = Join-Path $PSScriptRoot "installer.iss"
     & $iscc "/DMyAppVersion=$Version" $issFile
 
-    $setupFile = Join-Path $distRoot "ksital-hub-setup-v$Version.exe"
+    $setupFile = Join-Path $distRoot "telemetry-hub-setup-v$Version.exe"
     if (Test-Path $setupFile) {
         Write-Host "SUCCESS: Installer ready -> $setupFile" -ForegroundColor Green
     }

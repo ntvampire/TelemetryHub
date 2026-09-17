@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 echo ========================================================
-echo   Установка и настройка КСИТАЛ GSM Telemetry Hub
+echo   Установка и настройка Telemetry Hub
 echo ========================================================
 echo.
 
@@ -19,13 +19,13 @@ if %errorLevel% neq 0 (
 echo [1/2] Настройка службы фонового сбора данных...
 sc stop KsitalTelemetryWorker >nul 2>&1
 sc delete KsitalTelemetryWorker >nul 2>&1
-sc create KsitalTelemetryWorker binPath= "\"%WORKER_EXE%\"" start= auto DisplayName= "КСИТАЛ GSM - Сервис сбора данных"
+sc create KsitalTelemetryWorker binPath= "\"%WORKER_EXE%\"" start= auto DisplayName= "Telemetry Hub - Сервис сбора данных"
 sc failure KsitalTelemetryWorker reset= 60 actions= restart/5000/restart/5000/restart/5000
 sc start KsitalTelemetryWorker
 
 echo.
 echo [2/2] Создание ярлыка на Рабочем столе...
-set "SHORTCUT=%USERPROFILE%\Desktop\КСИТАЛ Telemetry Hub.lnk"
+set "SHORTCUT=%USERPROFILE%\Desktop\Telemetry Hub.lnk"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut($env:SHORTCUT); $s.TargetPath = '%APP_DIR%UI.Desktop.exe'; $s.WorkingDirectory = '%APP_DIR%'; $s.Save()"
 
 echo.

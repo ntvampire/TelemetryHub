@@ -3,6 +3,16 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
+# SQLite temporary and journal files
+*.db-shm
+*.db-wal
+*.db.bak
+
+# Application runtime logs
+*.log
+startup.log
+telemetry_startup.log
+
 # User-specific files
 *.rsuser
 *.suo

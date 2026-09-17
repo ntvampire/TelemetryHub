@@ -157,7 +157,7 @@ public class GsmModemClient : IDisposable
         Disconnect();
         GC.SuppressFinalize(this);
     }
-public bool SendSms(string phoneNumber, string messageText)
+    public bool SendSms(string phoneNumber, string messageText)
     {
         if (_serialPort == null || !_serialPort.IsOpen)
         {
@@ -171,7 +171,6 @@ public bool SendSms(string phoneNumber, string messageText)
 
         lock (_lock)
         {
-            // ... остальной код метода
             try
             {
                 // 1. Включаем текстовый режим SMS

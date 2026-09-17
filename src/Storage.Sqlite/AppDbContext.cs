@@ -180,30 +180,53 @@ public class AppDbContext : DbContext
         using var db = new AppDbContext(dbPath);
         db.Database.EnsureCreated();
 
-        try
+        using var conn = db.Database.GetDbConnection();
+        conn.Open();
+
+        // 1. Включаем Write-Ahead Logging (WAL) и синхронизацию NORMAL для защиты данных 24/7
+        using (var walCmd = conn.CreateCommand())
         {
-            using var conn = db.Database.GetDbConnection();
-            conn.Open();
+            walCmd.CommandText = "PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;";
+            walCmd.ExecuteNonQuery();
+        }
 
-            // Включаем Write-Ahead Logging (WAL) для устойчивости к сбоям питания 24/7
-            using (var walCmd = conn.CreateCommand())
+        // 2. Детерминированная проверка схемы таблицы Objects
+        var existingColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using (var colCmd = conn.CreateCommand())
+        {
+            colCmd.CommandText = "PRAGMA table_info(Objects);";
+            using var reader = colCmd.ExecuteReader();
+            while (reader.Read())
             {
-                walCmd.CommandText = "PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;";
-                try { walCmd.ExecuteNonQuery(); } catch { }
+                existingColumns.Add(reader.GetString(1));
             }
+        }
 
+        if (!existingColumns.Contains("District"))
+        {
             using var cmd = conn.CreateCommand();
-
             cmd.CommandText = "ALTER TABLE Objects ADD COLUMN District TEXT NOT NULL DEFAULT 'Основной участок';";
-            try { cmd.ExecuteNonQuery(); } catch { }
+            cmd.ExecuteNonQuery();
+        }
 
+        if (!existingColumns.Contains("DeviceType"))
+        {
+            using var cmd = conn.CreateCommand();
             cmd.CommandText = "ALTER TABLE Objects ADD COLUMN DeviceType INTEGER NOT NULL DEFAULT 0;";
-            try { cmd.ExecuteNonQuery(); } catch { }
+            cmd.ExecuteNonQuery();
+        }
 
+        if (!existingColumns.Contains("DevicePassword"))
+        {
+            using var cmd = conn.CreateCommand();
             cmd.CommandText = "ALTER TABLE Objects ADD COLUMN DevicePassword TEXT NOT NULL DEFAULT '00000';";
-            try { cmd.ExecuteNonQuery(); } catch { }
+            cmd.ExecuteNonQuery();
+        }
 
-            cmd.CommandText = @"
+        // 3. Создание вспомогательных таблиц, если их нет
+        using (var ddlCmd = conn.CreateCommand())
+        {
+            ddlCmd.CommandText = @"
                 CREATE TABLE IF NOT EXISTS OutgoingCommands (
                     Id INTEGER PRIMARY KEY AUTOINCREMENT,
                     MonitoredObjectId INTEGER NOT NULL,
@@ -215,10 +238,8 @@ public class AppDbContext : DbContext
                     Status INTEGER NOT NULL DEFAULT 0,
                     ErrorMessage TEXT NULL,
                     FOREIGN KEY (MonitoredObjectId) REFERENCES Objects(Id) ON DELETE CASCADE
-                );";
-            try { cmd.ExecuteNonQuery(); } catch { }
+                );
 
-            cmd.CommandText = @"
                 CREATE TABLE IF NOT EXISTS SystemStatus (
                     Id INTEGER PRIMARY KEY,
                     PortName TEXT NOT NULL,
@@ -230,8 +251,7 @@ public class AppDbContext : DbContext
                     LastError TEXT NULL,
                     TotalSmsProcessed INTEGER NOT NULL DEFAULT 0
                 );";
-            try { cmd.ExecuteNonQuery(); } catch { }
+            ddlCmd.ExecuteNonQuery();
         }
-        catch { }
     }
 }
