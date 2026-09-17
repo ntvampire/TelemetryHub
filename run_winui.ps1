@@ -33,7 +33,7 @@ if ($RunWorker) {
     if (Test-Path $workerExe) {
         Start-Process $workerExe
     } else {
-        dotnet run --project $workerProj -c Debug -r win-x64 --no-build &
+        Start-Process powershell -ArgumentList "-NoExit", "-Command", "dotnet run --project '$workerProj' -c Debug -r win-x64"
     }
 }
 
@@ -43,7 +43,6 @@ $winUiExe = Join-Path $PSScriptRoot "src\UI.WinUI\bin\x64\Debug\net8.0-windows10
 if (Test-Path $winUiExe) {
     Start-Process $winUiExe
 } else {
-    # Запуск через dotnet run
     dotnet run --project $winUiProj -c Debug -r win-x64 --no-build
 }
 
