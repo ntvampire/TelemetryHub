@@ -3,6 +3,7 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 
@@ -12,6 +13,16 @@ public static class Program
 {
     private static readonly string BaseLog = Path.Combine(AppContext.BaseDirectory, "startup.log");
     private static readonly string TempLog = Path.Combine(Path.GetTempPath(), "ksital_startup.log");
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool AttachConsole(int dwProcessId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr GetStdHandle(int nStdHandle);
+
+    private const int ATTACH_PARENT_PROCESS = -1;
+    private const int STD_OUTPUT_HANDLE = -11;
+    private const int STD_ERROR_HANDLE = -12;
 
     public static void WriteLog(string msg)
     {
@@ -26,6 +37,22 @@ public static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        try
+        {
+            if (AttachConsole(ATTACH_PARENT_PROCESS))
+            {
+                var stdOut = GetStdHandle(STD_OUTPUT_HANDLE);
+                if (stdOut != IntPtr.Zero && stdOut != new IntPtr(-1))
+                {
+                    var safeHandle = new Microsoft.Win32.SafeHandles.SafeFileHandle(stdOut, ownsHandle: false);
+                    var writer = new StreamWriter(new FileStream(safeHandle, FileAccess.Write)) { AutoFlush = true };
+                    Console.SetOut(writer);
+                    Console.SetError(writer);
+                }
+            }
+        }
+        catch { }
+
         WriteLog(">>> KsitalTelemetryHub Program.Main entered! <<<");
         WriteLog($"[{DateTime.Now}] Starting with args: {string.Join(" ", args)}");
 
