@@ -40,6 +40,7 @@ public partial class DashboardPage : Page
             var dialog = new ObjectDetailsDialog(item, ViewModel);
             dialog.XamlRoot = this.XamlRoot;
             await dialog.ShowAsync();
+            await ViewModel.RefreshDataAsync();
         }
     }
 
@@ -56,5 +57,6 @@ public partial class DashboardPage : Page
         var dialog = new ObjectDetailsDialog(newItem, ViewModel, isNew: true);
         dialog.XamlRoot = this.XamlRoot;
         await dialog.ShowAsync();
+        await ViewModel.RefreshDataAsync();
     }
 }

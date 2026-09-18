@@ -40,64 +40,92 @@
             </Button>
         </Grid>
 
-        <!-- Objects Grid / List (Fluent Cards) -->
+        <!-- Grouped Objects List by District (Fluent Cards in Expanders) -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <ItemsControl ItemsSource="{x:Bind ViewModel.Objects, Mode=OneWay}">
+            <ItemsControl ItemsSource="{x:Bind ViewModel.GroupedObjects, Mode=OneWay}">
                 <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="models:ObjectDisplayItem">
-                        <Border
-                            Background="{ThemeResource LayerFillColorDefaultBrush}"
-                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8"
-                            Margin="0,0,0,10"
-                            Padding="16">
-                            <Grid ColumnSpacing="16">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="260"/>
-                                    <ColumnDefinition Width="140"/>
-                                    <ColumnDefinition Width="130"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <!-- Column 1: Name and Phone -->
-                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                    <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" FontSize="16" TextTrimming="CharacterEllipsis"/>
-                                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
-                                        <TextBlock Text="{x:Bind PhoneNumber}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="13"/>
-                                        <Border Background="{ThemeResource SystemFillColorNeutralBackgroundBrush}" CornerRadius="4" Padding="6,2">
-                                            <TextBlock Text="{x:Bind DeviceTypeName}" FontSize="11" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
-                                        </Border>
-                                    </StackPanel>
-                                    <TextBlock Text="{x:Bind District}" Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="12" Margin="0,2,0,0"/>
+                    <DataTemplate x:DataType="models:ObjectDistrictGroup">
+                        <Expander
+                            IsExpanded="{x:Bind IsExpanded, Mode=TwoWay}"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
+                            MaxWidth="20000"
+                            Margin="0,0,0,16">
+                            <Expander.Header>
+                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE707;" FontSize="16" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                                    <TextBlock Text="{x:Bind District, Mode=OneWay}" FontSize="16" FontWeight="SemiBold"/>
+                                    <Border Background="{ThemeResource SystemFillColorNeutralBackgroundBrush}" CornerRadius="10" Padding="8,2">
+                                        <TextBlock Text="{x:Bind CountText, Mode=OneWay}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    </Border>
+                                    <Border Visibility="{x:Bind AlarmBadgeVisibility, Mode=OneWay}" Background="#E74C3C" CornerRadius="10" Padding="8,2">
+                                        <TextBlock Text="ТРЕВОГА" FontSize="11" FontWeight="Bold" Foreground="White"/>
+                                    </Border>
                                 </StackPanel>
+                            </Expander.Header>
 
-                                <!-- Column 2: 220V Status -->
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="Электросеть" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="11"/>
-                                    <TextBlock Text="{x:Bind PowerStatusText}" FontWeight="Bold" FontSize="14" Foreground="{x:Bind StatusBadgeBrush}"/>
-                                    <TextBlock Text="{x:Bind BatteryVoltage, Mode=OneWay}" Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="12"/>
-                                </StackPanel>
+                            <Expander.Content>
+                                <ItemsControl ItemsSource="{x:Bind Items, Mode=OneWay}" Margin="0,8,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="models:ObjectDisplayItem">
+                                            <Border
+                                                Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="8"
+                                                Margin="0,0,0,10"
+                                                Padding="16">
+                                                <Grid ColumnSpacing="16">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="260"/>
+                                                        <ColumnDefinition Width="140"/>
+                                                        <ColumnDefinition Width="130"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
 
-                                <!-- Column 3: Alarm Status -->
-                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                                    <TextBlock Text="Статус" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="11"/>
-                                    <TextBlock Text="{x:Bind AlarmDescription, Mode=OneWay}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" FontSize="12" Foreground="{x:Bind StatusBadgeBrush}"/>
-                                </StackPanel>
+                                                    <!-- Column 1: Name and Phone -->
+                                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                        <TextBlock Text="{x:Bind Name, Mode=OneWay}" FontWeight="SemiBold" FontSize="16" TextTrimming="CharacterEllipsis"/>
+                                                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                                                            <TextBlock Text="{x:Bind PhoneNumber, Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="13"/>
+                                                            <Border Background="{ThemeResource SystemFillColorNeutralBackgroundBrush}" CornerRadius="4" Padding="6,2">
+                                                                <TextBlock Text="{x:Bind DeviceTypeName, Mode=OneWay}" FontSize="11" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                                                            </Border>
+                                                        </StackPanel>
+                                                        <TextBlock Text="{x:Bind District, Mode=OneWay}" Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="12" Margin="0,2,0,0"/>
+                                                    </StackPanel>
 
-                                <!-- Column 4: Temperatures -->
-                                <StackPanel Grid.Column="3" VerticalAlignment="Center">
-                                    <TextBlock Text="Показания датчиков" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="11"/>
-                                    <TextBlock Text="{x:Bind TemperaturesFormatted}" FontWeight="Medium" FontSize="13" TextTrimming="CharacterEllipsis"/>
-                                </StackPanel>
+                                                    <!-- Column 2: 220V Status -->
+                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                        <TextBlock Text="Электросеть" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="11"/>
+                                                        <TextBlock Text="{x:Bind PowerStatusText, Mode=OneWay}" FontWeight="Bold" FontSize="14" Foreground="{x:Bind StatusBadgeBrush, Mode=OneWay}"/>
+                                                        <TextBlock Text="{x:Bind BatteryVoltage, Mode=OneWay}" Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="12"/>
+                                                    </StackPanel>
 
-                                <!-- Column 5: Action Button -->
-                                <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                    <Button Content="Управление" Click="BtnManageObject_Click" Tag="{x:Bind}"/>
-                                </StackPanel>
-                            </Grid>
-                        </Border>
+                                                    <!-- Column 3: Alarm Status -->
+                                                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                                        <TextBlock Text="Статус" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="11"/>
+                                                        <TextBlock Text="{x:Bind AlarmDescription, Mode=OneWay}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" FontSize="12" Foreground="{x:Bind StatusBadgeBrush, Mode=OneWay}"/>
+                                                    </StackPanel>
+
+                                                    <!-- Column 4: Temperatures -->
+                                                    <StackPanel Grid.Column="3" VerticalAlignment="Center">
+                                                        <TextBlock Text="Показания датчиков" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="11"/>
+                                                        <TextBlock Text="{x:Bind TemperaturesFormatted, Mode=OneWay}" FontWeight="Medium" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                                    </StackPanel>
+
+                                                    <!-- Column 5: Action Button -->
+                                                    <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                                        <Button Content="Управление" Click="BtnManageObject_Click" Tag="{x:Bind}"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Expander.Content>
+                        </Expander>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>

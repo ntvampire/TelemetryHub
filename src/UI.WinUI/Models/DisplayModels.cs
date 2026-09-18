@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI.Xaml.Media;
@@ -101,7 +102,64 @@ public partial class ObjectDisplayItem : ObservableObject
         HasActiveAlarm = other.HasActiveAlarm;
         AlarmDescription = other.AlarmDescription;
         Temperatures = new Dictionary<string, double>(other.Temperatures);
+
+        OnPropertyChanged(nameof(Name));
+        OnPropertyChanged(nameof(PhoneNumber));
+        OnPropertyChanged(nameof(District));
+        OnPropertyChanged(nameof(DeviceTypeName));
+        OnPropertyChanged(nameof(PowerStatusText));
+        OnPropertyChanged(nameof(StatusBadgeBrush));
+        OnPropertyChanged(nameof(StatusBadgeColor));
         OnPropertyChanged(nameof(TemperaturesFormatted));
+    }
+}
+
+public partial class ObjectDistrictGroup : ObservableObject
+{
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CountText))]
+    private string _district = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CountText))]
+    private ObservableCollection<ObjectDisplayItem> _items = new();
+
+    [ObservableProperty]
+    private bool _isExpanded = true;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActiveAlarm))]
+    [NotifyPropertyChangedFor(nameof(AlarmBadgeVisibility))]
+    private int _activeAlarmCount;
+
+    public bool HasActiveAlarm => ActiveAlarmCount > 0;
+
+    public Microsoft.UI.Xaml.Visibility AlarmBadgeVisibility => HasActiveAlarm
+        ? Microsoft.UI.Xaml.Visibility.Visible
+        : Microsoft.UI.Xaml.Visibility.Collapsed;
+
+    public string CountText => $"{Items.Count} {GetPlural(Items.Count, "объект", "объекта", "объектов")}";
+
+    public ObjectDistrictGroup(string district, IEnumerable<ObjectDisplayItem> items)
+    {
+        _district = district;
+        _items = new ObservableCollection<ObjectDisplayItem>(items);
+        _activeAlarmCount = _items.Count(i => i.HasActiveAlarm);
+    }
+
+    public void NotifyCountChanged()
+    {
+        OnPropertyChanged(nameof(CountText));
+    }
+
+    private static string GetPlural(int count, string one, string few, string many)
+    {
+        int n = Math.Abs(count) % 100;
+        int n1 = n % 10;
+        if (n is > 10 and < 20) return many;
+        if (n1 is > 1 and < 5) return few;
+        if (n1 == 1) return one;
+        return many;
     }
 }
 

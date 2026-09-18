@@ -209,6 +209,12 @@ public class ObjectDetailsDialog : ContentDialog
                 existing.DeviceType = devType;
                 existing.DevicePassword = password;
             }
+
+            _item.Name = name;
+            _item.PhoneNumber = cleanPhone;
+            _item.District = district;
+            _item.DeviceType = devType;
+            _item.DevicePassword = password;
         }
 
         await db.SaveChangesAsync();

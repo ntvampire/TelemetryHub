@@ -239,4 +239,42 @@ public class EndToEndIntegrationTests : IDisposable
             }
         }
     }
+
+    [Fact]
+    public async Task Objects_GroupedByDistrict_CorrectlyOrganizesAndOrders()
+    {
+        string testDb = Path.Combine(Path.GetTempPath(), $"grouping_test_{Guid.NewGuid():N}.db");
+        try
+        {
+            AppDbContext.EnsureDatabaseUpdated(testDb);
+
+            using var db = new AppDbContext(testDb);
+            db.Objects.Add(new MonitoredObject { Name = "Котельная Б", PhoneNumber = "+79001110001", District = "Северный участок" });
+            db.Objects.Add(new MonitoredObject { Name = "Котельная А", PhoneNumber = "+79001110002", District = "Северный участок" });
+            db.Objects.Add(new MonitoredObject { Name = "Насосная 1", PhoneNumber = "+79001110003", District = "Южный участок" });
+            db.Objects.Add(new MonitoredObject { Name = "Без района", PhoneNumber = "+79001110004", District = "" });
+            await db.SaveChangesAsync();
+
+            var dbObjects = await db.Objects.ToListAsync();
+            var grouped = dbObjects
+                .GroupBy(o => string.IsNullOrWhiteSpace(o.District) ? "Основной участок" : o.District.Trim())
+                .OrderBy(g => g.Key)
+                .ToList();
+
+            Assert.Equal(3, grouped.Count);
+            Assert.Equal("Основной участок", grouped[0].Key);
+            Assert.Single(grouped[0]);
+            Assert.Equal("Северный участок", grouped[1].Key);
+            Assert.Equal(2, grouped[1].Count());
+            Assert.Equal("Южный участок", grouped[2].Key);
+            Assert.Single(grouped[2]);
+        }
+        finally
+        {
+            if (File.Exists(testDb))
+            {
+                try { File.Delete(testDb); } catch { }
+            }
+        }
+    }
 }

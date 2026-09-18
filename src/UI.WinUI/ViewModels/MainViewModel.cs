@@ -30,6 +30,9 @@ public partial class MainViewModel : ObservableObject
     private ObservableCollection<ObjectDisplayItem> _objects = new();
 
     [ObservableProperty]
+    private ObservableCollection<ObjectDistrictGroup> _groupedObjects = new();
+
+    [ObservableProperty]
     private ObservableCollection<AlarmDisplayItem> _activeAlarms = new();
 
     [ObservableProperty]
@@ -285,6 +288,103 @@ public partial class MainViewModel : ObservableObject
 
         var sorted = query.OrderBy(o => o.District).ThenBy(o => o.Name).ToList();
         SyncCollection(sorted);
+        SyncGroupedCollection(sorted);
+    }
+
+    private void SyncGroupedCollection(List<ObjectDisplayItem> sortedItems)
+    {
+        var districtGroups = sortedItems
+            .GroupBy(o => string.IsNullOrWhiteSpace(o.District) ? "Основной участок" : o.District.Trim())
+            .OrderBy(g => g.Key)
+            .ToList();
+
+        // 1. Удаляем группы, которых больше нет
+        for (int i = GroupedObjects.Count - 1; i >= 0; i--)
+        {
+            if (!districtGroups.Any(g => string.Equals(g.Key, GroupedObjects[i].District, StringComparison.OrdinalIgnoreCase)))
+            {
+                GroupedObjects.RemoveAt(i);
+            }
+        }
+
+        // 2. Добавляем или обновляем группы с сохранением порядка
+        for (int gIdx = 0; gIdx < districtGroups.Count; gIdx++)
+        {
+            var g = districtGroups[gIdx];
+            var existingGroup = GroupedObjects.FirstOrDefault(dg => string.Equals(dg.District, g.Key, StringComparison.OrdinalIgnoreCase));
+
+            if (existingGroup == null)
+            {
+                var newGroup = new ObjectDistrictGroup(g.Key, g);
+                if (gIdx <= GroupedObjects.Count)
+                {
+                    GroupedObjects.Insert(gIdx, newGroup);
+                }
+                else
+                {
+                    GroupedObjects.Add(newGroup);
+                }
+            }
+            else
+            {
+                int currentIndex = GroupedObjects.IndexOf(existingGroup);
+                if (currentIndex != gIdx && gIdx < GroupedObjects.Count)
+                {
+                    GroupedObjects.Move(currentIndex, gIdx);
+                }
+
+                // Синхронизируем элементы внутри группы
+                var targetGroupItems = g.ToList();
+                SyncGroupItems(existingGroup.Items, targetGroupItems);
+                existingGroup.ActiveAlarmCount = existingGroup.Items.Count(i => i.HasActiveAlarm);
+                existingGroup.NotifyCountChanged();
+            }
+        }
+    }
+
+    private void SyncGroupItems(ObservableCollection<ObjectDisplayItem> currentItems, List<ObjectDisplayItem> targetItems)
+    {
+        for (int i = currentItems.Count - 1; i >= 0; i--)
+        {
+            if (!targetItems.Any(t => t.Id == currentItems[i].Id))
+            {
+                currentItems.RemoveAt(i);
+            }
+        }
+
+        for (int i = 0; i < targetItems.Count; i++)
+        {
+            var target = targetItems[i];
+            int existingIndex = -1;
+            for (int j = 0; j < currentItems.Count; j++)
+            {
+                if (currentItems[j].Id == target.Id)
+                {
+                    existingIndex = j;
+                    break;
+                }
+            }
+
+            if (existingIndex >= 0)
+            {
+                currentItems[existingIndex].UpdateFrom(target);
+                if (existingIndex != i && i < currentItems.Count)
+                {
+                    currentItems.Move(existingIndex, i);
+                }
+            }
+            else
+            {
+                if (i <= currentItems.Count)
+                {
+                    currentItems.Insert(i, target);
+                }
+                else
+                {
+                    currentItems.Add(target);
+                }
+            }
+        }
     }
 
     private void SyncCollection(List<ObjectDisplayItem> targetItems)

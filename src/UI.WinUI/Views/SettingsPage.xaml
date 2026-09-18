@@ -4,7 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <ScrollViewer Padding="24">
-        <StackPanel Spacing="20" MaxWidth="760" HorizontalAlignment="Left">
+        <StackPanel Spacing="20" HorizontalAlignment="Stretch">
             <TextBlock Text="Параметры системы и оборудования" FontSize="22" FontWeight="SemiBold"/>
 
             <!-- Section 1: COM Port and Service -->
