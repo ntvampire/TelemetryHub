@@ -175,15 +175,36 @@ public class Worker : BackgroundService
                     cmd.SentAt = DateTime.UtcNow;
                     cmd.ErrorMessage = null;
                     _logger.LogInformation("Команда #{Id} успешно отправлена", cmd.Id);
+
+                    db.Alarms.Add(new AlarmEvent
+                    {
+                        MonitoredObjectId = cmd.MonitoredObjectId,
+                        Timestamp = DateTime.UtcNow,
+                        Description = $"Отправлена команда: {cmd.Description} [SMS: {cmd.RawPayload}]",
+                        EventType = "Command",
+                        IsAcknowledged = true,
+                        AcknowledgedAt = DateTime.UtcNow
+                    });
                 }
                 else
                 {
                     cmd.Status = CommandStatus.Failed;
                     cmd.ErrorMessage = "Ошибка отправки через модем (таймаут или сбой сети)";
                     _logger.LogWarning("Сбой отправки команды #{Id}", cmd.Id);
+
+                    db.Alarms.Add(new AlarmEvent
+                    {
+                        MonitoredObjectId = cmd.MonitoredObjectId,
+                        Timestamp = DateTime.UtcNow,
+                        Description = $"Ошибка отправки команды: {cmd.Description} [SMS: {cmd.RawPayload}]",
+                        EventType = "Command",
+                        IsAcknowledged = true,
+                        AcknowledgedAt = DateTime.UtcNow
+                    });
                 }
 
                 await db.SaveChangesAsync(ct);
+                await db.RotateJournalEventsAsync(100, ct);
                 await Task.Delay(1000, ct); // Пауза для стабилизации GSM-тракта
             }
         }

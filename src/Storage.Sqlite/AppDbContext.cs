@@ -112,6 +112,7 @@ public class AppDbContext : DbContext
                 MonitoredObjectId = obj.Id,
                 Timestamp = record.Timestamp,
                 Description = "Авария: Отсутствует основное питание 220V",
+                EventType = "Alarm",
                 IsAcknowledged = false
             });
         }
@@ -124,11 +125,72 @@ public class AppDbContext : DbContext
                 MonitoredObjectId = obj.Id,
                 Timestamp = record.Timestamp,
                 Description = report.AlarmDescription,
+                EventType = "Alarm",
                 IsAcknowledged = false
             });
         }
 
+        // Фиксация регулярного отчета телеметрии, ответа или служебного сообщения в журнале событий
+        if (!report.IsAlarm && report.MainPower != PowerState.Off)
+        {
+            string pwrText = report.MainPower switch
+            {
+                PowerState.Normal => "220V: Есть",
+                PowerState.Off => "220V: Нет",
+                _ => ""
+            };
+
+            string batText = report.BatteryVoltage.HasValue ? $"АКБ: {report.BatteryVoltage:F1}В" : "";
+            string tempText = report.Temperatures != null && report.Temperatures.Count > 0
+                ? string.Join(", ", report.Temperatures.Select(t => $"{t.Key}={(t.Value > 0 ? "+" : "")}{t.Value:F1}°C"))
+                : "";
+
+            bool hasTelemetryData = !string.IsNullOrWhiteSpace(pwrText) || !string.IsNullOrWhiteSpace(batText) || !string.IsNullOrWhiteSpace(tempText);
+
+            string eventType = hasTelemetryData ? "Report" : "Service";
+            string summary = hasTelemetryData
+                ? string.Join("; ", new[] { pwrText, batText, tempText }.Where(s => !string.IsNullOrWhiteSpace(s)))
+                : (!string.IsNullOrWhiteSpace(report.RawText) ? report.RawText.Trim() : "Сообщение от оборудования");
+
+            Alarms.Add(new AlarmEvent
+            {
+                MonitoredObjectId = obj.Id,
+                Timestamp = record.Timestamp,
+                Description = summary,
+                EventType = eventType,
+                IsAcknowledged = true,
+                AcknowledgedAt = record.Timestamp
+            });
+        }
+
         await SaveChangesAsync(cancellationToken);
+        await RotateJournalEventsAsync(100, cancellationToken);
+    }
+
+    public async Task RotateJournalEventsAsync(int maxCount = 100, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var excessIds = await Alarms
+                .OrderByDescending(a => a.Timestamp)
+                .Skip(maxCount)
+                .Select(a => a.Id)
+                .ToListAsync(cancellationToken);
+
+            if (excessIds.Count > 0)
+            {
+                var itemsToDelete = await Alarms
+                    .Where(a => excessIds.Contains(a.Id))
+                    .ToListAsync(cancellationToken);
+
+                Alarms.RemoveRange(itemsToDelete);
+                await SaveChangesAsync(cancellationToken);
+            }
+        }
+        catch
+        {
+            // Игнорируем временные конфликты транзакций
+        }
     }
 
     public Task SaveReportAsync(TelemetrySnapshot report, CancellationToken cancellationToken = default)
@@ -272,6 +334,25 @@ public class AppDbContext : DbContext
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = "ALTER TABLE SystemStatus ADD COLUMN RequestedPortName TEXT NULL;";
+            cmd.ExecuteNonQuery();
+        }
+
+        // 5. Проверка схемы таблицы Alarms на наличие EventType
+        var alarmColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using (var alarmColCmd = conn.CreateCommand())
+        {
+            alarmColCmd.CommandText = "PRAGMA table_info(Alarms);";
+            using var reader = alarmColCmd.ExecuteReader();
+            while (reader.Read())
+            {
+                alarmColumns.Add(reader.GetString(1));
+            }
+        }
+
+        if (!alarmColumns.Contains("EventType"))
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "ALTER TABLE Alarms ADD COLUMN EventType TEXT NOT NULL DEFAULT 'Alarm';";
             cmd.ExecuteNonQuery();
         }
     }

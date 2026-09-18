@@ -107,6 +107,12 @@ public partial class ObjectDisplayItem : ObservableObject
 
 public partial class AlarmDisplayItem : ObservableObject
 {
+    public static readonly SolidColorBrush AlarmBrush = new(Color.FromArgb(255, 0xE7, 0x4C, 0x3C));
+    public static readonly SolidColorBrush ReportBrush = new(Color.FromArgb(255, 0x2E, 0xCC, 0x71));
+    public static readonly SolidColorBrush CommandBrush = new(Color.FromArgb(255, 0x34, 0x98, 0xDB));
+    public static readonly SolidColorBrush ServiceBrush = new(Color.FromArgb(255, 0x9B, 0x59, 0xB6));
+    public static readonly SolidColorBrush AcknowledgedBrush = new(Color.FromArgb(255, 0x95, 0xA5, 0xA6));
+
     public long Id { get; set; }
     public int MonitoredObjectId { get; set; }
     public string ObjectName { get; set; } = string.Empty;
@@ -114,7 +120,49 @@ public partial class AlarmDisplayItem : ObservableObject
     public DateTime Timestamp { get; set; }
     public string Description { get; set; } = string.Empty;
     public bool IsAcknowledged { get; set; }
-    public string StatusText => IsAcknowledged ? "Квитирована" : "АКТИВНАЯ АВАРИЯ";
+    public string EventType { get; set; } = "Alarm";
+
+    public string EventTypeTitle => EventType switch
+    {
+        "Alarm" => "ТРЕВОГА",
+        "Report" => "Телеметрия",
+        "Command" => "Команда",
+        "Response" => "Ответ",
+        "Service" => "Служебное",
+        _ => EventType
+    };
+
+    public string EventIconGlyph => EventType switch
+    {
+        "Alarm" => "\uE7BA",
+        "Command" => "\uE8BD",
+        "Response" => "\uE8C4",
+        "Service" => "\uE713",
+        _ => "\uE9D9"
+    };
+
+    public SolidColorBrush EventBrush => EventType switch
+    {
+        "Alarm" => IsAcknowledged ? AcknowledgedBrush : AlarmBrush,
+        "Command" => CommandBrush,
+        "Response" => ReportBrush,
+        "Service" => ServiceBrush,
+        _ => ReportBrush
+    };
+
+    public string StatusText => EventType == "Alarm"
+        ? (IsAcknowledged ? "Подтверждено" : "ТРЕВОГА")
+        : EventTypeTitle;
+
+    public Microsoft.UI.Xaml.Visibility AcknowledgeVisibility => (EventType == "Alarm" && !IsAcknowledged)
+        ? Microsoft.UI.Xaml.Visibility.Visible
+        : Microsoft.UI.Xaml.Visibility.Collapsed;
+
+    public Microsoft.UI.Xaml.Visibility AcknowledgedBadgeVisibility => (EventType == "Alarm" && IsAcknowledged)
+        ? Microsoft.UI.Xaml.Visibility.Visible
+        : Microsoft.UI.Xaml.Visibility.Collapsed;
+
+    public string TimestampFormatted => Timestamp.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss");
 }
 
 public class OutgoingCommandDisplayItem

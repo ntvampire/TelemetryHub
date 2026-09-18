@@ -24,8 +24,23 @@ public partial class MainWindow : Window
         _timer.Tick += async (s, e) => await ViewModel.RefreshDataAsync();
         _timer.Start();
 
-        // Стартовая страница
-        ContentFrame.Navigate(typeof(DashboardPage), ViewModel);
+        // Установка иконки окна
+        try
+        {
+            var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
+            if (System.IO.File.Exists(iconPath))
+            {
+                this.AppWindow.SetIcon(iconPath);
+            }
+        }
+        catch { }
+
+        // Стартовая страница по умолчанию — Журнал событий
+        ContentFrame.Navigate(typeof(AlarmsPage), ViewModel);
+        if (NavView.MenuItems.Count > 0)
+        {
+            NavView.SelectedItem = NavView.MenuItems[0];
+        }
     }
 
     private void NavView_ItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)

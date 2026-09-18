@@ -160,4 +160,48 @@ public class EndToEndIntegrationTests : IDisposable
         Assert.NotEmpty(alarms);
         Assert.Contains(alarms, a => a.Description.Contains("220V"));
     }
+
+    [Fact]
+    public async Task EventJournal_RecordsEvents_And_RotatesTo100Entries()
+    {
+        using var db = new AppDbContext(_dbPath);
+
+        var obj = new MonitoredObject
+        {
+            Name = "Тестовый объект Журнала",
+            PhoneNumber = "+79998887766",
+            District = "Центральный участок",
+            DeviceType = DeviceType.Ksital,
+            DevicePassword = "00000"
+        };
+        db.Objects.Add(obj);
+        await db.SaveChangesAsync();
+
+        // Добавляем 120 событий разного типа
+        for (int i = 1; i <= 120; i++)
+        {
+            db.Alarms.Add(new AlarmEvent
+            {
+                MonitoredObjectId = obj.Id,
+                Timestamp = DateTime.UtcNow.AddMinutes(i),
+                Description = $"Событие #{i}",
+                EventType = (i % 3 == 0) ? "Alarm" : ((i % 3 == 1) ? "Report" : "Command"),
+                IsAcknowledged = (i % 3 != 0)
+            });
+        }
+        await db.SaveChangesAsync();
+
+        // Ротация до 100 записей
+        await db.RotateJournalEventsAsync(100);
+
+        var totalEvents = await db.Alarms.CountAsync();
+        Assert.Equal(100, totalEvents);
+
+        // Проверяем, что сохранились самые свежие 100 событий (с #21 по #120)
+        var oldestRemaining = await db.Alarms.OrderBy(a => a.Timestamp).FirstAsync();
+        Assert.Equal("Событие #21", oldestRemaining.Description);
+
+        var newestRemaining = await db.Alarms.OrderByDescending(a => a.Timestamp).FirstAsync();
+        Assert.Equal("Событие #120", newestRemaining.Description);
+    }
 }

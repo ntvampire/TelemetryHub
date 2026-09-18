@@ -32,7 +32,6 @@ public partial class SettingsPage : Page
             ViewModel = vm;
         }
 
-        TxtWorkingDbPath.Text = App.DatabasePath;
         TxtBackupDir.Text = BackupService.GetBackupDirectory();
         TxtCurrentVersion.Text = $"Текущая версия: v{UpdateService.GetCurrentVersionString()}";
 

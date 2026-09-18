@@ -18,25 +18,27 @@
             </Grid.ColumnDefinitions>
 
             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                <FontIcon Glyph="&#xE7BA;" Foreground="{ThemeResource SystemFillColorCriticalBrush}"/>
-                <TextBlock Text="Журнал активных аварий и тревог" FontSize="18" FontWeight="SemiBold"/>
-                <InfoBadge Value="{x:Bind ViewModel.UnacknowledgedAlarmsCount, Mode=OneWay}" Style="{ThemeResource AttentionValueInfoBadgeStyle}"/>
+                <FontIcon Glyph="&#xE9D9;" Foreground="{ThemeResource AccentAAFillColorDefaultBrush}"/>
+                <TextBlock Text="Журнал событий" FontSize="18" FontWeight="SemiBold"/>
+                <InfoBadge Value="{x:Bind ViewModel.UnacknowledgedAlarmsCount, Mode=OneWay}" 
+                           Style="{ThemeResource AttentionValueInfoBadgeStyle}" 
+                           Visibility="{x:Bind ViewModel.UnacknowledgedBadgeVisibility, Mode=OneWay}"/>
             </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                <Button Content="Квитировать все" Command="{x:Bind ViewModel.AcknowledgeAllAlarmsCommand}"/>
+                <Button Content="Подтвердить все" Command="{x:Bind ViewModel.AcknowledgeAllAlarmsCommand}"/>
                 <Button Content="Обновить" Command="{x:Bind ViewModel.RefreshDataCommand}"/>
             </StackPanel>
         </Grid>
 
-        <!-- Alarms List -->
+        <!-- Events List -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <ItemsControl ItemsSource="{x:Bind ViewModel.ActiveAlarms, Mode=OneWay}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="models:AlarmDisplayItem">
                         <Border
                             Background="{ThemeResource LayerFillColorDefaultBrush}"
-                            BorderBrush="{ThemeResource SystemFillColorCriticalBrush}"
+                            BorderBrush="{x:Bind EventBrush}"
                             BorderThickness="1"
                             CornerRadius="8"
                             Margin="0,0,0,10"
@@ -49,19 +51,35 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
-                                <FontIcon Grid.Column="0" Glyph="&#xE783;" Foreground="{ThemeResource SystemFillColorCriticalBrush}" VerticalAlignment="Center"/>
+                                <FontIcon Grid.Column="0" Glyph="{x:Bind EventIconGlyph}" Foreground="{x:Bind EventBrush}" FontSize="20" VerticalAlignment="Center"/>
 
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                     <TextBlock Text="{x:Bind ObjectName}" FontWeight="SemiBold" FontSize="15"/>
                                     <TextBlock Text="{x:Bind PhoneNumber}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12"/>
-                                    <TextBlock Text="{x:Bind Timestamp}" Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="11"/>
+                                    <TextBlock Text="{x:Bind TimestampFormatted}" Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="11"/>
                                 </StackPanel>
 
-                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="4">
+                                    <Border Background="{x:Bind EventBrush}" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
+                                        <TextBlock Text="{x:Bind EventTypeTitle}" FontSize="10" FontWeight="Bold" Foreground="White"/>
+                                    </Border>
                                     <TextBlock Text="{x:Bind Description}" FontSize="14" FontWeight="Medium" TextWrapping="Wrap"/>
                                 </StackPanel>
 
-                                <Button Grid.Column="3" Content="Квитировать" Click="BtnAcknowledge_Click" Tag="{x:Bind Id}" VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <Button Content="Подтвердить" 
+                                            Click="BtnAcknowledge_Click" 
+                                            Tag="{x:Bind Id}" 
+                                            Visibility="{x:Bind AcknowledgeVisibility}" 
+                                            VerticalAlignment="Center"/>
+                                    <Border Visibility="{x:Bind AcknowledgedBadgeVisibility}" 
+                                            Background="{ThemeResource SubtleFillColorSecondaryBrush}" 
+                                            CornerRadius="4" 
+                                            Padding="8,4" 
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="Подтверждено" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    </Border>
+                                </StackPanel>
                             </Grid>
                         </Border>
                     </DataTemplate>

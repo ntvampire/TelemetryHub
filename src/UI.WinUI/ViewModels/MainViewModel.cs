@@ -66,7 +66,12 @@ public partial class MainViewModel : ObservableObject
     public SolidColorBrush ModemStatusBrush => IsModemConnected ? ObjectDisplayItem.GreenBrush : ObjectDisplayItem.RedBrush;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UnacknowledgedBadgeVisibility))]
     private int _unacknowledgedAlarmsCount;
+
+    public Microsoft.UI.Xaml.Visibility UnacknowledgedBadgeVisibility => UnacknowledgedAlarmsCount > 0
+        ? Microsoft.UI.Xaml.Visibility.Visible
+        : Microsoft.UI.Xaml.Visibility.Collapsed;
 
     [ObservableProperty]
     private bool _isSoundAlarmEnabled = true;
@@ -127,15 +132,14 @@ public partial class MainViewModel : ObservableObject
                 .AsNoTracking()
                 .ToDictionaryAsync(t => t.MonitoredObjectId);
 
-            // 3. Активные тревоги за один запрос с группировкой по объектам
-            var alarms = await db.Alarms
-                .Where(a => !a.IsAcknowledged)
+            // 3. Активные неподтвержденные тревоги для карточек объектов
+            var unackAlarms = await db.Alarms
+                .Where(a => !a.IsAcknowledged && a.EventType == "Alarm")
                 .OrderByDescending(a => a.Timestamp)
-                .Take(50)
                 .AsNoTracking()
                 .ToListAsync();
 
-            var activeAlarmsByObj = alarms
+            var activeAlarmsByObj = unackAlarms
                 .GroupBy(a => a.MonitoredObjectId)
                 .ToDictionary(g => g.Key, g => g.First());
 
@@ -176,14 +180,20 @@ public partial class MainViewModel : ObservableObject
             _allLoadedObjects.AddRange(currentMasterList);
             ApplyFilter();
 
-            // 5. Обработка журнала активных аварий и звуковое оповещение при новых авариях
-            var alarmDisplays = new List<AlarmDisplayItem>();
+            // 5. Загрузка Журнала событий (до 100 последних записей всех типов)
+            var journalEvents = await db.Alarms
+                .OrderByDescending(a => a.Timestamp)
+                .Take(100)
+                .AsNoTracking()
+                .ToListAsync();
+
+            var eventDisplays = new List<AlarmDisplayItem>();
             var newAlarms = new List<AlarmDisplayItem>();
 
-            foreach (var a in alarms)
+            foreach (var a in journalEvents)
             {
                 var relatedObj = dbObjects.FirstOrDefault(o => o.Id == a.MonitoredObjectId);
-                var displayAlarm = new AlarmDisplayItem
+                var displayItem = new AlarmDisplayItem
                 {
                     Id = a.Id,
                     MonitoredObjectId = a.MonitoredObjectId,
@@ -191,23 +201,24 @@ public partial class MainViewModel : ObservableObject
                     PhoneNumber = relatedObj?.PhoneNumber ?? "",
                     Timestamp = a.Timestamp,
                     Description = a.Description,
-                    IsAcknowledged = a.IsAcknowledged
+                    IsAcknowledged = a.IsAcknowledged,
+                    EventType = a.EventType
                 };
-                alarmDisplays.Add(displayAlarm);
+                eventDisplays.Add(displayItem);
 
                 if (!_knownAlarmIds.Contains(a.Id))
                 {
                     _knownAlarmIds.Add(a.Id);
-                    if (!_isFirstLoad)
+                    if (!_isFirstLoad && a.EventType == "Alarm" && !a.IsAcknowledged)
                     {
-                        newAlarms.Add(displayAlarm);
+                        newAlarms.Add(displayItem);
                     }
                 }
             }
             _isFirstLoad = false;
 
-            ActiveAlarms = new ObservableCollection<AlarmDisplayItem>(alarmDisplays);
-            UnacknowledgedAlarmsCount = alarmDisplays.Count;
+            ActiveAlarms = new ObservableCollection<AlarmDisplayItem>(eventDisplays);
+            UnacknowledgedAlarmsCount = unackAlarms.Count;
 
             if (newAlarms.Count > 0)
             {
@@ -331,6 +342,7 @@ public partial class MainViewModel : ObservableObject
         if (alarm != null)
         {
             alarm.IsAcknowledged = true;
+            alarm.AcknowledgedAt = DateTime.UtcNow;
             await db.SaveChangesAsync();
             await RefreshDataAsync();
         }
@@ -340,10 +352,11 @@ public partial class MainViewModel : ObservableObject
     public async Task AcknowledgeAllAlarmsAsync()
     {
         using var db = new AppDbContext(_dbPath);
-        var unackAlarms = await db.Alarms.Where(a => !a.IsAcknowledged).ToListAsync();
+        var unackAlarms = await db.Alarms.Where(a => !a.IsAcknowledged && a.EventType == "Alarm").ToListAsync();
         foreach (var a in unackAlarms)
         {
             a.IsAcknowledged = true;
+            a.AcknowledgedAt = DateTime.UtcNow;
         }
         await db.SaveChangesAsync();
         await RefreshDataAsync();
@@ -366,7 +379,20 @@ public partial class MainViewModel : ObservableObject
         };
 
         db.OutgoingCommands.Add(cmd);
+
+        // Фиксация команды оператора в журнале событий
+        db.Alarms.Add(new AlarmEvent
+        {
+            MonitoredObjectId = obj.Id,
+            Timestamp = DateTime.UtcNow,
+            Description = $"Запрос оператора: {description} [SMS: {rawPayload}]",
+            EventType = "Command",
+            IsAcknowledged = true,
+            AcknowledgedAt = DateTime.UtcNow
+        });
+
         await db.SaveChangesAsync();
+        await db.RotateJournalEventsAsync(100);
         await RefreshDataAsync();
     }
 

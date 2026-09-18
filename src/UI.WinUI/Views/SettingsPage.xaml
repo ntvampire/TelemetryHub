@@ -48,8 +48,6 @@
                     <TextBlock Text="Рабочая база данных размещается в папке с приложением. Резервные копии создаются ежедневно с автоматической ротацией (сохраняется не более 10 последних копий)."
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" TextWrapping="Wrap"/>
 
-                    <TextBox x:Name="TxtWorkingDbPath" Header="Рабочая копия базы данных (локальная)" IsReadOnly="True"/>
-
                     <Grid ColumnSpacing="8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>

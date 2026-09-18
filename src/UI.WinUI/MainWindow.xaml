@@ -13,8 +13,8 @@
             ItemInvoked="NavView_ItemInvoked">
 
             <NavigationView.MenuItems>
+                <NavigationViewItem Content="Журнал событий" Tag="alarms" Icon="Document"/>
                 <NavigationViewItem Content="Диспетчер объектов" Tag="dashboard" Icon="Home"/>
-                <NavigationViewItem Content="Журнал аварий" Tag="alarms" Icon="ReportHacked"/>
             </NavigationView.MenuItems>
 
             <NavigationView.PaneFooter>
