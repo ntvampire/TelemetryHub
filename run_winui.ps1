@@ -1,6 +1,7 @@
 # Telemetry Hub (WinUI 3) CLI Runner
 param(
-    [switch]$RunWorker = $false
+    [switch]$RunWorker = $false,
+    [switch]$NoBuild = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,16 +16,18 @@ if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
-Write-Host "1. Building WinUI 3 (Debug win-x64)..." -ForegroundColor Yellow
-dotnet build $winUiProj -c Debug -r win-x64 -p:Platform=x64
+if (-not $NoBuild) {
+    Write-Host "1. Building WinUI 3 (Debug win-x64)..." -ForegroundColor Yellow
+    dotnet build $winUiProj -c Debug -r win-x64 -p:Platform=x64
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Build failed for WinUI project."
-    exit $LASTEXITCODE
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Build failed for WinUI project."
+        exit $LASTEXITCODE
+    }
+
+    Write-Host "2. Building Worker Service..." -ForegroundColor Yellow
+    dotnet build $workerProj -c Debug -r win-x64 -p:Platform=x64
 }
-
-Write-Host "2. Building Worker Service..." -ForegroundColor Yellow
-dotnet build $workerProj -c Debug -r win-x64 -p:Platform=x64
 
 if ($RunWorker) {
     Write-Host "3. Starting Service.Worker..." -ForegroundColor Green
