@@ -308,6 +308,67 @@ public partial class SettingsPage : Page
         }
     }
 
+    private async void BtnImportGsmGuard_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var picker = new Windows.Storage.Pickers.FileOpenPicker();
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindowInstance);
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+            picker.FileTypeFilter.Add(".txt");
+
+            var file = await picker.PickSingleFileAsync();
+            if (file == null) return;
+
+            var imported = ImportExportService.ImportFromGsmGuard(file.Path);
+            if (imported.Count == 0)
+            {
+                TxtBackupStatus.Text = "В выбранном файле GSMGuard не найдено объектов.";
+                return;
+            }
+
+            using var db = new AppDbContext(App.DatabasePath);
+            int added = 0;
+            int updated = 0;
+
+            foreach (var target in imported)
+            {
+                string cleanPhone = PhoneNumber.Normalize(target.PhoneNumber);
+                if (string.IsNullOrEmpty(cleanPhone)) continue;
+
+                var existing = await db.Objects.FirstOrDefaultAsync(o => o.PhoneNumber == cleanPhone);
+                if (existing != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(target.Name)) existing.Name = target.Name;
+                    if (!string.IsNullOrWhiteSpace(target.District)) existing.District = target.District;
+                    existing.DeviceType = target.DeviceType;
+                    if (!string.IsNullOrWhiteSpace(target.Password)) existing.DevicePassword = target.Password;
+                    updated++;
+                }
+                else
+                {
+                    db.Objects.Add(new MonitoredObject
+                    {
+                        Name = string.IsNullOrWhiteSpace(target.Name) ? $"Объект {cleanPhone}" : target.Name,
+                        PhoneNumber = cleanPhone,
+                        District = string.IsNullOrWhiteSpace(target.District) ? "Основной район" : target.District,
+                        DeviceType = target.DeviceType,
+                        DevicePassword = string.IsNullOrWhiteSpace(target.Password) ? "00000" : target.Password
+                    });
+                    added++;
+                }
+            }
+
+            await db.SaveChangesAsync();
+            TxtBackupStatus.Text = $"Импорт GSMGuard завершен: добавлено {added}, обновлено {updated} (всего объектов в файле: {imported.Count}).";
+            if (ViewModel != null) await ViewModel.RefreshDataAsync();
+        }
+        catch (Exception ex)
+        {
+            TxtBackupStatus.Text = $"Ошибка импорта GSMGuard: {ex.Message}";
+        }
+    }
+
     private async void BtnExportExcel_Click(object sender, RoutedEventArgs e)
     {
         try

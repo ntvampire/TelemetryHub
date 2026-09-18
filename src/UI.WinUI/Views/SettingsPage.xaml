@@ -61,6 +61,7 @@
                         <Button Content="Создать резервную копию" Click="BtnBackup_Click"/>
                         <Button Content="Восстановить из копии..." Click="BtnRestore_Click"/>
                         <Button Content="Импорт объектов (.xlsx, .csv)" Click="BtnImportExcel_Click"/>
+                        <Button Content="Импорт из GSMGuard (.txt)" Click="BtnImportGsmGuard_Click"/>
                         <Button Content="Экспорт в Excel" Click="BtnExportExcel_Click"/>
                     </StackPanel>
 
