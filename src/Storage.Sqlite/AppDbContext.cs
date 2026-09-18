@@ -53,13 +53,22 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<AlarmEvent>()
             .HasOne(a => a.MonitoredObject)
-            .WithMany()
+            .WithMany(o => o.Alarms)
             .HasForeignKey(a => a.MonitoredObjectId)
             .IsRequired(false)
             .OnDelete(DeleteBehavior.Cascade);
 
+        modelBuilder.Entity<TelemetryRecord>()
+            .HasOne(t => t.MonitoredObject)
+            .WithMany(o => o.TelemetryRecords)
+            .HasForeignKey(t => t.MonitoredObjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         modelBuilder.Entity<OutgoingCommand>()
-            .HasIndex(c => c.CreatedAt);
+            .HasOne(c => c.MonitoredObject)
+            .WithMany(o => o.OutgoingCommands)
+            .HasForeignKey(c => c.MonitoredObjectId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<SystemStatus>()
             .HasKey(s => s.Id);

@@ -411,4 +411,63 @@ public class EndToEndIntegrationTests : IDisposable
             }
         }
     }
+
+    [Fact]
+    public async Task AlarmsQuery_OnMigratedDatabase_ExecutesWithoutShadowColumnError()
+    {
+        string testDb = Path.Combine(Path.GetTempPath(), $"ef_schema_test_{Guid.NewGuid():N}.db");
+        try
+        {
+            // Инициализация через DDL-метод как в боевом приложении
+            AppDbContext.EnsureDatabaseUpdated(testDb);
+
+            using var db = new AppDbContext(testDb);
+
+            // Добавляем тестовый объект
+            var obj = new MonitoredObject
+            {
+                Name = "Тестовая котельная",
+                PhoneNumber = "+79991112233",
+                District = "Центральный"
+            };
+            db.Objects.Add(obj);
+            await db.SaveChangesAsync();
+
+            // Добавляем аварию
+            db.Alarms.Add(new AlarmEvent
+            {
+                MonitoredObjectId = obj.Id,
+                Timestamp = DateTime.UtcNow,
+                Description = "Тестовая авария 220V",
+                EventType = "Alarm",
+                IsAcknowledged = false
+            });
+            await db.SaveChangesAsync();
+
+            // Выполняем точный запрос из MainViewModel.RefreshDataAsync
+            var unackAlarms = await db.Alarms
+                .Where(a => !a.IsAcknowledged && a.EventType == "Alarm")
+                .OrderByDescending(a => a.Timestamp)
+                .AsNoTracking()
+                .ToListAsync();
+
+            Assert.Single(unackAlarms);
+            Assert.Equal(obj.Id, unackAlarms[0].MonitoredObjectId);
+
+            var journal = await db.Alarms
+                .OrderByDescending(a => a.Timestamp)
+                .Take(100)
+                .AsNoTracking()
+                .ToListAsync();
+
+            Assert.Single(journal);
+        }
+        finally
+        {
+            if (File.Exists(testDb))
+            {
+                try { File.Delete(testDb); } catch { }
+            }
+        }
+    }
 }

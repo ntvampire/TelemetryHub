@@ -123,17 +123,21 @@ public partial class MainViewModel : ObservableObject
             var objectIds = dbObjects.Select(o => o.Id).ToList();
 
             // Пакетное получение ID последних записей телеметрии для каждого объекта
-            var latestTelemetryIds = await db.Telemetry
-                .Where(t => objectIds.Contains(t.MonitoredObjectId))
-                .GroupBy(t => t.MonitoredObjectId)
-                .Select(g => g.Max(t => t.Id))
-                .ToListAsync();
+            var latestTelemetryIds = objectIds.Count > 0
+                ? await db.Telemetry
+                    .Where(t => objectIds.Contains(t.MonitoredObjectId))
+                    .GroupBy(t => t.MonitoredObjectId)
+                    .Select(g => g.Max(t => t.Id))
+                    .ToListAsync()
+                : new List<long>();
 
-            var latestRecords = await db.Telemetry
-                .Where(t => latestTelemetryIds.Contains(t.Id))
-                .Include(t => t.Temperatures)
-                .AsNoTracking()
-                .ToDictionaryAsync(t => t.MonitoredObjectId);
+            var latestRecords = latestTelemetryIds.Count > 0
+                ? await db.Telemetry
+                    .Where(t => latestTelemetryIds.Contains(t.Id))
+                    .Include(t => t.Temperatures)
+                    .AsNoTracking()
+                    .ToDictionaryAsync(t => t.MonitoredObjectId)
+                : new Dictionary<int, TelemetryRecord>();
 
             // 3. Активные неподтвержденные тревоги для карточек объектов
             var unackAlarms = await db.Alarms
