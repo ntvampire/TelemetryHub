@@ -25,11 +25,11 @@ public partial class DashboardPage : Page
         }
     }
 
-    private async void AutoSuggestBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    private void AutoSuggestBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
         if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
         {
-            await ViewModel.RefreshDataAsync();
+            ViewModel.SearchText = sender.Text;
         }
     }
 

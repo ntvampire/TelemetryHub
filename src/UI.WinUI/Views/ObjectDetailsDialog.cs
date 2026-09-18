@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.EntityFrameworkCore;
 using KsitalTelemetryHub.Core;
@@ -15,10 +16,18 @@ public class ObjectDetailsDialog : ContentDialog
     private readonly MainViewModel _vm;
     private readonly bool _isNew;
 
+    private readonly InfoBar _infoBar = new()
+    {
+        IsOpen = false,
+        Severity = InfoBarSeverity.Error,
+        Margin = new Thickness(0, 0, 0, 8)
+    };
+
     private readonly TextBox _txtName = new() { Header = "Название объекта" };
     private readonly TextBox _txtPhone = new() { Header = "Номер телефона SIM-карты (+7...)" };
     private readonly TextBox _txtDistrict = new() { Header = "Район / Участок" };
-    private readonly ComboBox _cmbType = new() { Header = "Тип контроллера" };
+    private readonly TextBox _txtPassword = new() { Header = "Пароль устройства (GSM-код)" };
+    private readonly ComboBox _cmbType = new() { Header = "Тип контроллера", HorizontalAlignment = HorizontalAlignment.Stretch };
 
     public ObjectDetailsDialog(ObjectDisplayItem item, MainViewModel vm, bool isNew = false)
     {
@@ -28,95 +37,166 @@ public class ObjectDetailsDialog : ContentDialog
 
         Title = _isNew ? "Добавление объекта" : $"Параметры: {_item.Name}";
         PrimaryButtonText = "Сохранить";
+        SecondaryButtonText = _isNew ? "" : "Удалить";
         CloseButtonText = "Закрыть";
         DefaultButton = ContentDialogButton.Primary;
 
         _cmbType.Items.Add("КСИТАЛ GSM");
         _cmbType.Items.Add("CCU-825");
         _cmbType.Items.Add("ОВЕН ПЛК");
-        _cmbType.SelectedIndex = (int)_item.DeviceType;
+        _cmbType.SelectedIndex = Math.Clamp((int)_item.DeviceType, 0, 2);
 
         _txtName.Text = _item.Name;
         _txtPhone.Text = _item.PhoneNumber;
-        _txtDistrict.Text = _item.District;
+        _txtDistrict.Text = string.IsNullOrWhiteSpace(_item.District) ? "Основной участок" : _item.District;
+        _txtPassword.Text = string.IsNullOrWhiteSpace(_item.DevicePassword) ? "00000" : _item.DevicePassword;
 
-        var stack = new StackPanel { Spacing = 12, Width = 380 };
+        var stack = new StackPanel { Spacing = 12, Width = 420 };
+        stack.Children.Add(_infoBar);
         stack.Children.Add(_txtName);
         stack.Children.Add(_txtPhone);
         stack.Children.Add(_txtDistrict);
+        stack.Children.Add(_txtPassword);
         stack.Children.Add(_cmbType);
 
         if (!_isNew)
         {
-            var commandHeader = new TextBlock
+            var templates = DeviceCommandBuilder.GetTemplates(_item.DeviceType);
+            if (templates.Count > 0)
             {
-                Text = "Быстрые SMS-команды",
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                Margin = new Microsoft.UI.Xaml.Thickness(0, 8, 0, 0)
-            };
-            stack.Children.Add(commandHeader);
+                var commandHeader = new TextBlock
+                {
+                    Text = $"Быстрые SMS-команды ({_item.DeviceTypeName})",
+                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    Margin = new Thickness(0, 8, 0, 0)
+                };
+                stack.Children.Add(commandHeader);
 
-            var cmdPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-            var btnStatus = new Button { Content = "Запрос отчета" };
-            btnStatus.Click += async (s, e) =>
-            {
-                await _vm.EnqueueCommandAsync(_item.Id, "?", "Запрос текущего состояния");
-                this.Hide();
-            };
+                var grid = new Grid { ColumnSpacing = 8, RowSpacing = 8 };
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-            var btnRelay1 = new Button { Content = "Реле 1 Вкл" };
-            btnRelay1.Click += async (s, e) =>
-            {
-                await _vm.EnqueueCommandAsync(_item.Id, "Relay 1 ON", "Включение реле 1");
-                this.Hide();
-            };
+                for (int i = 0; i < templates.Count; i++)
+                {
+                    var template = templates[i];
+                    var btn = new Button
+                    {
+                        Content = template.Title,
+                        HorizontalAlignment = HorizontalAlignment.Stretch
+                    };
+                    ToolTipService.SetToolTip(btn, $"{template.Description}\nШаблон: {template.Pattern}");
 
-            cmdPanel.Children.Add(btnStatus);
-            cmdPanel.Children.Add(btnRelay1);
-            stack.Children.Add(cmdPanel);
+                    btn.Click += async (s, e) =>
+                    {
+                        string password = _txtPassword.Text.Trim();
+                        string payload = DeviceCommandBuilder.BuildPayload(template.Pattern, password);
+                        await _vm.EnqueueCommandAsync(_item.Id, payload, template.Description);
+                        this.Hide();
+                    };
+
+                    if (i % 2 == 0)
+                    {
+                        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                    }
+                    Grid.SetRow(btn, i / 2);
+                    Grid.SetColumn(btn, i % 2);
+                    grid.Children.Add(btn);
+                }
+                stack.Children.Add(grid);
+            }
         }
 
-        Content = stack;
-        PrimaryButtonClick += async (s, e) => await SaveObjectAsync();
+        Content = new ScrollViewer { Content = stack, MaxHeight = 540 };
+
+        PrimaryButtonClick += async (s, args) =>
+        {
+            var deferral = args.GetDeferral();
+            try
+            {
+                _infoBar.IsOpen = false;
+                string rawName = _txtName.Text.Trim();
+                if (string.IsNullOrWhiteSpace(rawName))
+                {
+                    _infoBar.Message = "Введите название объекта.";
+                    _infoBar.IsOpen = true;
+                    args.Cancel = true;
+                    return;
+                }
+
+                string rawPhone = _txtPhone.Text.Trim();
+                string cleanPhone = PhoneNumber.Normalize(rawPhone);
+                if (string.IsNullOrWhiteSpace(cleanPhone) || cleanPhone.Length < 10)
+                {
+                    _infoBar.Message = "Введите корректный номер телефона (например, +79991234567).";
+                    _infoBar.IsOpen = true;
+                    args.Cancel = true;
+                    return;
+                }
+
+                await SaveObjectAsync(cleanPhone, rawName);
+            }
+            catch (Exception ex)
+            {
+                _infoBar.Message = $"Ошибка сохранения: {ex.Message}";
+                _infoBar.IsOpen = true;
+                args.Cancel = true;
+            }
+            finally
+            {
+                deferral.Complete();
+            }
+        };
+
+        if (!_isNew)
+        {
+            SecondaryButtonClick += async (s, args) =>
+            {
+                var deferral = args.GetDeferral();
+                try
+                {
+                    await _vm.DeleteObjectAsync(_item.Id);
+                }
+                finally
+                {
+                    deferral.Complete();
+                }
+            };
+        }
     }
 
-    private async Task SaveObjectAsync()
+    private async Task SaveObjectAsync(string cleanPhone, string name)
     {
-        try
-        {
-            var phoneObj = new PhoneNumber(_txtPhone.Text.Trim());
-            using var db = new AppDbContext(App.DatabasePath);
+        using var db = new AppDbContext(App.DatabasePath);
+        var devType = (DeviceType)Math.Clamp(_cmbType.SelectedIndex, 0, 2);
+        string district = string.IsNullOrWhiteSpace(_txtDistrict.Text) ? "Основной участок" : _txtDistrict.Text.Trim();
+        string password = string.IsNullOrWhiteSpace(_txtPassword.Text) ? "00000" : _txtPassword.Text.Trim();
 
-            if (_isNew)
-            {
-                var newObj = new MonitoredObject
-                {
-                    Name = _txtName.Text.Trim(),
-                    PhoneNumber = phoneObj.Value,
-                    District = _txtDistrict.Text.Trim(),
-                    DeviceType = (DeviceType)_cmbType.SelectedIndex
-                };
-                db.Objects.Add(newObj);
-            }
-            else
-            {
-                var existing = await db.Objects.FirstOrDefaultAsync(o => o.Id == _item.Id);
-                if (existing != null)
-                {
-                    existing.Name = _txtName.Text.Trim();
-                    existing.PhoneNumber = phoneObj.Value;
-                    existing.District = _txtDistrict.Text.Trim();
-                    existing.DeviceType = (DeviceType)_cmbType.SelectedIndex;
-                }
-            }
-
-            await db.SaveChangesAsync();
-            await _vm.RefreshDataAsync();
-        }
-        catch (Exception ex)
+        if (_isNew)
         {
-            // Показать ошибку валидации
-            Title = $"Ошибка: {ex.Message}";
+            var newObj = new MonitoredObject
+            {
+                Name = name,
+                PhoneNumber = cleanPhone,
+                District = district,
+                DeviceType = devType,
+                DevicePassword = password
+            };
+            db.Objects.Add(newObj);
         }
+        else
+        {
+            var existing = await db.Objects.FirstOrDefaultAsync(o => o.Id == _item.Id);
+            if (existing != null)
+            {
+                existing.Name = name;
+                existing.PhoneNumber = cleanPhone;
+                existing.District = district;
+                existing.DeviceType = devType;
+                existing.DevicePassword = password;
+            }
+        }
+
+        await db.SaveChangesAsync();
+        await _vm.RefreshDataAsync();
     }
 }
