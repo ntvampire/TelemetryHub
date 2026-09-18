@@ -35,6 +35,15 @@ public partial class MainWindow : Window
         }
         catch { }
 
+        // Подписка на появление новых аварий / повторных оповещений
+        ViewModel.NewAlarmArrived += alarm =>
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                Services.AlarmManager.ShowAlarm(alarm, ViewModel);
+            });
+        };
+
         // Стартовая страница по умолчанию — Журнал событий
         ContentFrame.Navigate(typeof(AlarmsPage), ViewModel);
         if (NavView.MenuItems.Count > 0)

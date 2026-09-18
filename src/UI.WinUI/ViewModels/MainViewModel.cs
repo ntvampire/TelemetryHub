@@ -196,12 +196,22 @@ public partial class MainViewModel : ObservableObject
             foreach (var a in journalEvents)
             {
                 var relatedObj = dbObjects.FirstOrDefault(o => o.Id == a.MonitoredObjectId);
+                string devTypeName = relatedObj?.DeviceType switch
+                {
+                    DeviceType.Ksital => "КСИТАЛ GSM",
+                    DeviceType.Ccu825 => "CCU-825",
+                    DeviceType.OwenPlc => "ОВЕН ПЛК",
+                    _ => "Контроллер"
+                };
+
                 var displayItem = new AlarmDisplayItem
                 {
                     Id = a.Id,
                     MonitoredObjectId = a.MonitoredObjectId,
                     ObjectName = relatedObj?.Name ?? $"Объект #{a.MonitoredObjectId}",
                     PhoneNumber = relatedObj?.PhoneNumber ?? "",
+                    District = string.IsNullOrWhiteSpace(relatedObj?.District) ? "Основной участок" : relatedObj.District,
+                    DeviceTypeName = devTypeName,
                     Timestamp = a.Timestamp,
                     Description = a.Description,
                     IsAcknowledged = a.IsAcknowledged,
@@ -225,20 +235,17 @@ public partial class MainViewModel : ObservableObject
 
             if (newAlarms.Count > 0)
             {
-                if (IsSoundAlarmEnabled)
-                {
-                    try
-                    {
-                        MessageBeep(0x00000030); // MB_ICONEXCLAMATION
-                    }
-                    catch { }
-                }
-
                 foreach (var na in newAlarms)
                 {
                     NewAlarmArrived?.Invoke(na);
                 }
             }
+
+            // 5.1. Проверка истечения 5-минутного периода отложения тревог
+            await Services.AlarmManager.CheckSnoozedAlarmsAsync(this, na =>
+            {
+                NewAlarmArrived?.Invoke(na);
+            });
 
             // 6. Очередь команд
             var commands = await db.OutgoingCommands
@@ -443,7 +450,20 @@ public partial class MainViewModel : ObservableObject
         {
             alarm.IsAcknowledged = true;
             alarm.AcknowledgedAt = DateTime.UtcNow;
+
+            var relatedObj = await db.Objects.FirstOrDefaultAsync(o => o.Id == alarm.MonitoredObjectId);
+            var ackEvent = new AlarmEvent
+            {
+                MonitoredObjectId = alarm.MonitoredObjectId,
+                Timestamp = DateTime.UtcNow,
+                Description = $"Тревога подтверждена оператором: {relatedObj?.Name ?? "Объект"} ({alarm.Description})",
+                EventType = "Service",
+                IsAcknowledged = true
+            };
+            db.Alarms.Add(ackEvent);
+
             await db.SaveChangesAsync();
+            await db.RotateJournalEventsAsync(100);
             await RefreshDataAsync();
         }
     }
@@ -453,13 +473,28 @@ public partial class MainViewModel : ObservableObject
     {
         using var db = new AppDbContext(_dbPath);
         var unackAlarms = await db.Alarms.Where(a => !a.IsAcknowledged && a.EventType == "Alarm").ToListAsync();
-        foreach (var a in unackAlarms)
+        if (unackAlarms.Count > 0)
         {
-            a.IsAcknowledged = true;
-            a.AcknowledgedAt = DateTime.UtcNow;
+            foreach (var a in unackAlarms)
+            {
+                a.IsAcknowledged = true;
+                a.AcknowledgedAt = DateTime.UtcNow;
+            }
+
+            var ackAllEvent = new AlarmEvent
+            {
+                MonitoredObjectId = unackAlarms[0].MonitoredObjectId,
+                Timestamp = DateTime.UtcNow,
+                Description = $"Все активные тревоги ({unackAlarms.Count}) подтверждены оператором",
+                EventType = "Service",
+                IsAcknowledged = true
+            };
+            db.Alarms.Add(ackAllEvent);
+
+            await db.SaveChangesAsync();
+            await db.RotateJournalEventsAsync(100);
+            await RefreshDataAsync();
         }
-        await db.SaveChangesAsync();
-        await RefreshDataAsync();
     }
 
     public async Task EnqueueCommandAsync(int objectId, string rawPayload, string description)

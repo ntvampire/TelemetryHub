@@ -277,4 +277,76 @@ public class EndToEndIntegrationTests : IDisposable
             }
         }
     }
+
+    [Fact]
+    public async Task AlarmEvents_SnoozeAndAcknowledge_LogsToJournalAndRotates()
+    {
+        string testDb = Path.Combine(Path.GetTempPath(), $"alarm_snooze_{Guid.NewGuid():N}.db");
+        try
+        {
+            AppDbContext.EnsureDatabaseUpdated(testDb);
+
+            using var db = new AppDbContext(testDb);
+            var obj = new MonitoredObject { Name = "Котельная №1", PhoneNumber = "+79998887766", District = "Северный участок" };
+            db.Objects.Add(obj);
+            await db.SaveChangesAsync();
+
+            // 1. Создаем аварию
+            var alarm = new AlarmEvent
+            {
+                MonitoredObjectId = obj.Id,
+                Timestamp = DateTime.UtcNow,
+                Description = "Авария: Падение давления",
+                EventType = "Alarm",
+                IsAcknowledged = false
+            };
+            db.Alarms.Add(alarm);
+            await db.SaveChangesAsync();
+
+            // 2. Откладывание на 5 минут - логируется в журнал
+            var snoozeEvent = new AlarmEvent
+            {
+                MonitoredObjectId = obj.Id,
+                Timestamp = DateTime.UtcNow,
+                Description = $"Тревога по объекту '{obj.Name}' отложена на 5 мин (по кнопке «Отложить»): {alarm.Description}",
+                EventType = "Service",
+                IsAcknowledged = true
+            };
+            db.Alarms.Add(snoozeEvent);
+            await db.SaveChangesAsync();
+
+            var events = await db.Alarms.Where(a => a.MonitoredObjectId == obj.Id).ToListAsync();
+            Assert.Equal(2, events.Count);
+            Assert.Contains(events, e => e.EventType == "Service" && e.Description.Contains("отложена на 5 мин"));
+
+            // 3. Подтверждение тревоги оператором
+            alarm.IsAcknowledged = true;
+            alarm.AcknowledgedAt = DateTime.UtcNow;
+
+            var ackEvent = new AlarmEvent
+            {
+                MonitoredObjectId = obj.Id,
+                Timestamp = DateTime.UtcNow,
+                Description = $"Тревога подтверждена оператором: {obj.Name} ({alarm.Description})",
+                EventType = "Service",
+                IsAcknowledged = true
+            };
+            db.Alarms.Add(ackEvent);
+            await db.SaveChangesAsync();
+            await db.RotateJournalEventsAsync(100);
+
+            var updatedEvents = await db.Alarms.Where(a => a.MonitoredObjectId == obj.Id).ToListAsync();
+            Assert.Equal(3, updatedEvents.Count);
+            var confirmedAlarm = updatedEvents.First(e => e.Id == alarm.Id);
+            Assert.True(confirmedAlarm.IsAcknowledged);
+            Assert.NotNull(confirmedAlarm.AcknowledgedAt);
+        }
+        finally
+        {
+            if (File.Exists(testDb))
+            {
+                try { File.Delete(testDb); } catch { }
+            }
+        }
+    }
 }

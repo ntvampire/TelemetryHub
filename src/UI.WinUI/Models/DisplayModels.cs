@@ -175,6 +175,8 @@ public partial class AlarmDisplayItem : ObservableObject
     public int MonitoredObjectId { get; set; }
     public string ObjectName { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
+    public string District { get; set; } = "Основной участок";
+    public string DeviceTypeName { get; set; } = "Контроллер";
     public DateTime Timestamp { get; set; }
     public string Description { get; set; } = string.Empty;
     public bool IsAcknowledged { get; set; }
