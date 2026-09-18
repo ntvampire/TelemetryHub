@@ -18,4 +18,5 @@ public class SystemStatus
     public DateTime LastHeartbeat { get; set; } = DateTime.UtcNow;
     public string? LastError { get; set; }
     public int TotalSmsProcessed { get; set; }
+    public string? RequestedPortName { get; set; }
 }

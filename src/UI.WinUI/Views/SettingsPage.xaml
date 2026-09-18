@@ -4,38 +4,65 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <ScrollViewer Padding="24">
-        <StackPanel Spacing="20" MaxWidth="700" HorizontalAlignment="Left">
-            <TextBlock Text="Настройки системы и базы данных" FontSize="20" FontWeight="SemiBold"/>
+        <StackPanel Spacing="20" MaxWidth="760" HorizontalAlignment="Left">
+            <TextBlock Text="Параметры системы и оборудования" FontSize="22" FontWeight="SemiBold"/>
 
             <!-- Section 1: COM Port and Service -->
             <Border Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="20">
-                <StackPanel Spacing="12">
-                    <TextBlock Text="Аппаратный GSM-модем (Служба Service.Worker)" FontWeight="SemiBold" FontSize="15"/>
-                    <TextBlock Text="Служба сбора является единственным монопольным владельцем COM-порта. WinUI интерфейс считывает телеметрию из базы данных через IPC-таблицу SystemStatus без коллизий портов."
+                <StackPanel Spacing="14">
+                    <TextBlock Text="Аппаратный GSM-модем (Служба Service.Worker)" FontWeight="SemiBold" FontSize="16"/>
+                    <TextBlock Text="Служба сбора является монопольным владельцем COM-порта. Смена порта передается через IPC-таблицу базы данных без коллизий оборудования."
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" TextWrapping="Wrap"/>
                     
-                    <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,8,0,0">
-                        <StackPanel>
-                            <TextBlock Text="Статус порта" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    <Grid ColumnSpacing="24">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Текущий порт службы" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                             <TextBlock Text="{x:Bind ViewModel.ComPortStatus, Mode=OneWay}" FontWeight="SemiBold" FontSize="14"/>
                         </StackPanel>
-                        <StackPanel>
-                            <TextBlock Text="Статус модема" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Статус связи с модемом" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                             <TextBlock Text="{x:Bind ViewModel.ModemStatus, Mode=OneWay}" FontWeight="SemiBold" FontSize="14"/>
                         </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="Выбор активного COM-порта модема" FontSize="13" FontWeight="Medium" Margin="0,6,0,0"/>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <ComboBox x:Name="CmbComPorts" Width="220" PlaceholderText="Выберите порт..."/>
+                        <Button x:Name="BtnRefreshPorts" Click="BtnRefreshPorts_Click" ToolTipService.ToolTip="Обновить список портов Windows">
+                            <FontIcon Glyph="&#xE72C;"/>
+                        </Button>
+                        <Button x:Name="BtnApplyPort" Content="Применить порт" Click="BtnApplyPort_Click"/>
                     </StackPanel>
+                    <TextBlock x:Name="TxtPortStatus" FontSize="12" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
                 </StackPanel>
             </Border>
 
             <!-- Section 2: Database & Backup -->
             <Border Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="20">
-                <StackPanel Spacing="12">
-                    <TextBlock Text="Резервное копирование базы данных SQLite (WAL-Safe)" FontWeight="SemiBold" FontSize="15"/>
-                    <TextBlock Text="Горячее копирование с поддержкой WAL-журналирования без остановки сервиса телеметрии." Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12"/>
+                <StackPanel Spacing="14">
+                    <TextBlock Text="База данных и резервное копирование" FontWeight="SemiBold" FontSize="16"/>
+                    <TextBlock Text="Рабочая база данных размещается в папке с приложением. Резервные копии создаются ежедневно с автоматической ротацией (сохраняется не более 10 последних копий)."
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" TextWrapping="Wrap"/>
 
-                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,8,0,0">
+                    <TextBox x:Name="TxtWorkingDbPath" Header="Рабочая копия базы данных (локальная)" IsReadOnly="True"/>
+
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="TxtBackupDir" Header="Папка для резервных копий (ежедневный бэкап и ротация)" IsReadOnly="True" Grid.Column="0"/>
+                        <Button Content="Выбрать папку..." Click="BtnSelectBackupFolder_Click" VerticalAlignment="Bottom" Grid.Column="1"/>
+                    </Grid>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,4,0,0">
                         <Button Content="Создать резервную копию" Click="BtnBackup_Click"/>
-                        <Button Content="Импорт объектов из Excel (.xlsx)" Click="BtnImportExcel_Click"/>
+                        <Button Content="Восстановить из копии..." Click="BtnRestore_Click"/>
+                        <Button Content="Импорт объектов (.xlsx, .csv)" Click="BtnImportExcel_Click"/>
                         <Button Content="Экспорт в Excel" Click="BtnExportExcel_Click"/>
                     </StackPanel>
 
@@ -46,8 +73,25 @@
             <!-- Section 3: Notification settings -->
             <Border Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="20">
                 <StackPanel Spacing="12">
-                    <TextBlock Text="Звуковые уведомления и сирена" FontWeight="SemiBold" FontSize="15"/>
+                    <TextBlock Text="Звуковые уведомления и сирена" FontWeight="SemiBold" FontSize="16"/>
                     <ToggleSwitch Header="Включить звуковую сирену при авариях (220V, обрыв контура)" IsOn="{x:Bind ViewModel.IsSoundAlarmEnabled, Mode=TwoWay}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Section 4: GitHub Updates -->
+            <Border Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="20">
+                <StackPanel Spacing="14">
+                    <TextBlock Text="Обновление приложения Telemetry Hub" FontWeight="SemiBold" FontSize="16"/>
+                    <TextBlock Text="Проверка релизов на GitHub и автоматическое обновление программного комплекса."
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" TextWrapping="Wrap"/>
+
+                    <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                        <TextBlock x:Name="TxtCurrentVersion" Text="Текущая версия: v1.0.0" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        <Button x:Name="BtnCheckUpdates" Content="Проверить обновления" Click="BtnCheckUpdates_Click"/>
+                        <ProgressRing x:Name="PrgUpdate" IsActive="False" Visibility="Collapsed" Width="20" Height="20"/>
+                    </StackPanel>
+
+                    <TextBlock x:Name="TxtUpdateStatus" FontSize="12"/>
                 </StackPanel>
             </Border>
         </StackPanel>

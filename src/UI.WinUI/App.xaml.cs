@@ -54,20 +54,15 @@ public partial class App : Application
         Log("OnLaunched entered");
         try
         {
-            // Поиск БД рядом с исполняемым файлом или в рабочем каталоге
+            // Рабочая копия БД всегда строго в папке с установленным приложением
             var appDir = System.AppContext.BaseDirectory;
-            var localDb = Path.Combine(appDir, "telemetry.db");
-            if (File.Exists(localDb))
-            {
-                DatabasePath = localDb;
-            }
-            else
-            {
-                DatabasePath = Path.GetFullPath(DatabasePath);
-            }
+            DatabasePath = Path.Combine(appDir, "telemetry.db");
 
             // Гарантируем актуальность структуры и таблиц БД
             Storage.Sqlite.AppDbContext.EnsureDatabaseUpdated(DatabasePath);
+
+            // Ежедневное резервное копирование БД с ротацией (до 10 копий)
+            Services.BackupService.CheckAndPerformDailyBackup();
 
             Log("Creating MainWindow...");
             MainWindowInstance = new MainWindow();

@@ -12,7 +12,7 @@ public class Worker : BackgroundService
 {
     private readonly ILogger<Worker> _logger;
     private readonly IConfiguration _configuration;
-    private readonly string _portName;
+    private string _currentPortName;
     private readonly int _baudRate;
     private readonly int _pollIntervalSec;
     private readonly string _dbPath;
@@ -23,7 +23,7 @@ public class Worker : BackgroundService
         _logger = logger;
         _configuration = configuration;
 
-        _portName = _configuration.GetValue<string>("ModemSettings:PortName") ?? "COM3";
+        _currentPortName = _configuration.GetValue<string>("ModemSettings:PortName") ?? "COM3";
         _baudRate = _configuration.GetValue<int>("ModemSettings:BaudRate", 115200);
         _pollIntervalSec = _configuration.GetValue<int>("ModemSettings:PollIntervalSeconds", 10);
         _dbPath = _configuration.GetValue<string>("DatabaseSettings:DbPath") ?? "telemetry.db";
@@ -42,7 +42,7 @@ public class Worker : BackgroundService
         _logger.LogInformation("Инициализация базы данных SQLite ({DbPath})...", _dbPath);
         AppDbContext.EnsureDatabaseUpdated(_dbPath);
 
-        _logger.LogInformation("Запуск сервиса мониторинга телеметрии. Порт: {Port}, Скорость: {Baud}", _portName, _baudRate);
+        _logger.LogInformation("Запуск сервиса мониторинга телеметрии. Порт: {Port}, Скорость: {Baud}", _currentPortName, _baudRate);
 
         GsmModemClient? modem = null;
 
@@ -52,12 +52,25 @@ public class Worker : BackgroundService
             {
                 using var db = new AppDbContext(_dbPath);
 
+                // 0. Проверка запроса на смену COM-порта из UI
+                var currentStatus = await db.SystemStatus.FirstOrDefaultAsync(s => s.Id == 1, stoppingToken);
+                if (currentStatus != null && !string.IsNullOrWhiteSpace(currentStatus.RequestedPortName) && currentStatus.RequestedPortName != _currentPortName)
+                {
+                    _logger.LogInformation("Получен запрос на смену COM-порта на {NewPort}...", currentStatus.RequestedPortName);
+                    modem?.Dispose();
+                    modem = null;
+                    _currentPortName = currentStatus.RequestedPortName;
+                    currentStatus.PortName = _currentPortName;
+                    currentStatus.RequestedPortName = null;
+                    await db.SaveChangesAsync(stoppingToken);
+                }
+
                 // 1. Контроль подключения к аппаратному модему
                 if (modem == null || !modem.IsConnected)
                 {
-                    _logger.LogInformation("Подключение к модему на порту {Port}...", _portName);
+                    _logger.LogInformation("Подключение к модему на порту {Port}...", _currentPortName);
                     modem?.Dispose();
-                    modem = new GsmModemClient(_portName, _baudRate);
+                    modem = new GsmModemClient(_currentPortName, _baudRate);
                     modem.Connect();
                     _logger.LogInformation("Модем успешно подключен.");
                 }
@@ -107,14 +120,14 @@ public class Worker : BackgroundService
 
                 // 4. Обновление системного Heartbeat для UI (без коллизий COM-порта)
                 await db.UpdateWorkerHeartbeatAsync(
-                    portName: _portName,
+                    portName: _currentPortName,
                     isModemConnected: true,
                     newSmsProcessed: messages.Count,
                     cancellationToken: stoppingToken);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Ошибка цикла опроса модема. Порт {Port}. Повтор через {Sec} сек...", _portName, _pollIntervalSec);
+                _logger.LogError(ex, "Ошибка цикла опроса модема. Порт {Port}. Повтор через {Sec} сек...", _currentPortName, _pollIntervalSec);
                 modem?.Dispose();
                 modem = null;
 
@@ -122,7 +135,7 @@ public class Worker : BackgroundService
                 {
                     using var db = new AppDbContext(_dbPath);
                     await db.UpdateWorkerHeartbeatAsync(
-                        portName: _portName,
+                        portName: _currentPortName,
                         isModemConnected: false,
                         lastError: ex.Message,
                         cancellationToken: stoppingToken);

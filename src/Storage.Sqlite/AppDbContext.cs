@@ -250,9 +250,29 @@ public class AppDbContext : DbContext
                     OperatorName TEXT NULL,
                     LastHeartbeat TEXT NOT NULL,
                     LastError TEXT NULL,
-                    TotalSmsProcessed INTEGER NOT NULL DEFAULT 0
+                    TotalSmsProcessed INTEGER NOT NULL DEFAULT 0,
+                    RequestedPortName TEXT NULL
                 );";
             ddlCmd.ExecuteNonQuery();
+        }
+
+        // 4. Проверка схемы таблицы SystemStatus на наличие RequestedPortName
+        var statusColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using (var statusColCmd = conn.CreateCommand())
+        {
+            statusColCmd.CommandText = "PRAGMA table_info(SystemStatus);";
+            using var reader = statusColCmd.ExecuteReader();
+            while (reader.Read())
+            {
+                statusColumns.Add(reader.GetString(1));
+            }
+        }
+
+        if (!statusColumns.Contains("RequestedPortName"))
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "ALTER TABLE SystemStatus ADD COLUMN RequestedPortName TEXT NULL;";
+            cmd.ExecuteNonQuery();
         }
     }
 }
