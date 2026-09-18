@@ -81,13 +81,20 @@ public class GsmModemClient : IDisposable
                     // Декодируем сообщение через написанный PduDecoder
                     var decoded = PduDecoder.Decode(pdu);
                     messages.Add(decoded);
-
-                    // Удаляем прочитанное SMS по его индексу, чтобы память не забивалась
-                    SendCommand($"AT+CMGD={idx}");
                 }
                 catch
                 {
-                    // При поврежденном PDU можно залогировать и продолжить
+                    // При поврежденном PDU пропускаем декодирование, но удаляем из памяти в finally
+                }
+                finally
+                {
+                    // Гарантированно удаляем SMS из памяти модема (даже если PDU был поврежден или это спам),
+                    // чтобы память SIM-карты/модема никогда не переполнялась
+                    try
+                    {
+                        SendCommand($"AT+CMGD={idx}");
+                    }
+                    catch { }
                 }
             }
 

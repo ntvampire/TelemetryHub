@@ -30,6 +30,11 @@ Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 Name: "startmenuicon"; Description: "Создать ярлыки в меню Пуск"; GroupDescription: "{cm:AdditionalIcons}"
 
+[Dirs]
+; Предоставляем права на запись и изменение в папку приложения встроенной группе "Пользователи"
+; Это гарантирует, что оператор сможет запускать программу и писать в рабочую БД telemetry.db без прав администратора (без UAC)
+Name: "{app}"; Permissions: users-modify
+
 [Files]
 ; Копируем все файлы скомпилированного UI и скриптов (исключая рабочие базы)
 Source: "dist\ksital-hub\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "telemetry.db*,*.pdb"

@@ -26,7 +26,29 @@ public class Worker : BackgroundService
         _currentPortName = _configuration.GetValue<string>("ModemSettings:PortName") ?? "COM3";
         _baudRate = _configuration.GetValue<int>("ModemSettings:BaudRate", 115200);
         _pollIntervalSec = _configuration.GetValue<int>("ModemSettings:PollIntervalSeconds", 10);
-        _dbPath = _configuration.GetValue<string>("DatabaseSettings:DbPath") ?? "telemetry.db";
+
+        string configuredDb = _configuration.GetValue<string>("DatabaseSettings:DbPath") ?? "telemetry.db";
+        if (Path.IsPathRooted(configuredDb))
+        {
+            _dbPath = configuredDb;
+        }
+        else
+        {
+            // Если служба установлена в подпапку (например, {app}\WorkerService\),
+            // проверяем родительскую папку на наличие telemetry.db или исполняемого файла UI
+            string parentDb = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", configuredDb));
+            string localDb = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, configuredDb));
+            string parentExe = Path.Combine(AppContext.BaseDirectory, "..", "KsitalTelemetryHub.UI.WinUI.exe");
+
+            if (File.Exists(parentExe) || File.Exists(parentDb))
+            {
+                _dbPath = parentDb;
+            }
+            else
+            {
+                _dbPath = localDb;
+            }
+        }
 
         // Единый реестр парсеров для всех типов объектовых контроллеров
         _parserRegistry = new TelemetryParserRegistry(new ITelemetryParser[]
@@ -93,27 +115,44 @@ public class Worker : BackgroundService
                         // Поиск объекта в базе по нормализованному номеру телефона
                         var obj = await db.Objects.FirstOrDefaultAsync(o => o.PhoneNumber == cleanPhone, stoppingToken);
 
-                        // Разрешение парсера (по типу объекта из БД либо по структуре текста)
-                        var parser = _parserRegistry.Resolve(sms.Text, obj?.DeviceType);
-                        var snapshot = parser.Parse(sms.Text, sms.Timestamp, cleanPhone);
-
                         if (obj != null)
                         {
+                            // Разрешение парсера (по типу объекта из БД либо по структуре текста)
+                            var parser = _parserRegistry.Resolve(sms.Text, obj.DeviceType);
+                            var snapshot = parser.Parse(sms.Text, sms.Timestamp, cleanPhone);
                             snapshot.DeviceName = obj.Name;
-                        }
 
-                        // Сохранение снимка телеметрии и фиксация тревог
-                        await db.SaveReportAsync(cleanPhone, snapshot, stoppingToken);
+                            // Сохранение снимка телеметрии и фиксация тревог
+                            await db.SaveReportAsync(cleanPhone, snapshot, stoppingToken);
 
-                        if (snapshot.IsAlarm)
-                        {
-                            _logger.LogWarning("!!! ТРЕВОГА по объекту {Obj} ({Phone}): {Desc}", 
-                                snapshot.DeviceName, cleanPhone, snapshot.AlarmDescription);
+                            if (snapshot.IsAlarm)
+                            {
+                                _logger.LogWarning("!!! ТРЕВОГА по объекту {Obj} ({Phone}): {Desc}", 
+                                    snapshot.DeviceName, cleanPhone, snapshot.AlarmDescription);
+                            }
+                            else
+                            {
+                                _logger.LogInformation("Телеметрия сохранена: [{Dev}] Объект={Obj}, 220V={Pwr}",
+                                    parser.SupportedDeviceType, snapshot.DeviceName, snapshot.MainPower);
+                            }
                         }
                         else
                         {
-                            _logger.LogInformation("Телеметрия сохранена: [{Dev}] Объект={Obj}, 220V={Pwr}",
-                                parser.SupportedDeviceType, snapshot.DeviceName, snapshot.MainPower);
+                            // Объект не найден в базе (служебное SMS оператора связи, баланс, реклама или неизвестный номер)
+                            _logger.LogInformation("SMS от неизвестного отправителя/оператора ({Phone}): \"{Text}\". Запись в Журнал событий.", cleanPhone, sms.Text);
+
+                            db.Alarms.Add(new AlarmEvent
+                            {
+                                MonitoredObjectId = null,
+                                Timestamp = sms.Timestamp != default ? sms.Timestamp : DateTime.UtcNow,
+                                Description = $"Служебное SMS от {sms.SenderNumber}: {sms.Text}",
+                                EventType = "Service",
+                                IsAcknowledged = true,
+                                AcknowledgedAt = DateTime.UtcNow
+                            });
+
+                            await db.RotateJournalEventsAsync(100, stoppingToken);
+                            await db.SaveChangesAsync(stoppingToken);
                         }
                     }
                 }

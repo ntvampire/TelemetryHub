@@ -349,4 +349,66 @@ public class EndToEndIntegrationTests : IDisposable
             }
         }
     }
+
+    [Fact]
+    public async Task UnknownSenderSms_LogsToJournal_DoesNotCreateMonitoredObject()
+    {
+        string testDb = $"test_unknown_sms_{Guid.NewGuid():N}.db";
+        try
+        {
+            AppDbContext.EnsureDatabaseUpdated(testDb);
+            using var db = new AppDbContext(testDb);
+
+            // Создаем 1 известный объект
+            var knownObj = new MonitoredObject
+            {
+                PhoneNumber = "+79990001122",
+                Name = "Котельная №1",
+                District = "Северный участок",
+                DeviceType = DeviceType.Ksital,
+                DevicePassword = "00000"
+            };
+            db.Objects.Add(knownObj);
+            await db.SaveChangesAsync();
+
+            // Имитируем поступление SMS от неизвестного номера (например, баланс оператора или сторонний номер)
+            string spamPhone = "+79998887766";
+            string spamText = "Уважаемый абонент! Ваш баланс менее 50 руб.";
+
+            var existingObj = await db.Objects.FirstOrDefaultAsync(o => o.PhoneNumber == spamPhone);
+            Assert.Null(existingObj);
+
+            // При получении от неизвестного номера: объект НЕ создается, пишется в журнал Alarms
+            db.Alarms.Add(new AlarmEvent
+            {
+                MonitoredObjectId = null,
+                Timestamp = DateTime.UtcNow,
+                Description = $"Служебное SMS от {spamPhone}: {spamText}",
+                EventType = "Service",
+                IsAcknowledged = true,
+                AcknowledgedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+            await db.RotateJournalEventsAsync(100);
+
+            // Проверяем: количество объектов в системе не изменилось (только 1 исходный)
+            var allObjects = await db.Objects.ToListAsync();
+            Assert.Single(allObjects);
+            Assert.Equal("+79990001122", allObjects[0].PhoneNumber);
+
+            // Проверяем: в журнале событий появилась служебная запись
+            var journalEvents = await db.Alarms.ToListAsync();
+            Assert.Single(journalEvents);
+            Assert.Equal("Service", journalEvents[0].EventType);
+            Assert.True(journalEvents[0].IsAcknowledged);
+            Assert.Contains("баланс менее 50 руб", journalEvents[0].Description, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            if (File.Exists(testDb))
+            {
+                try { File.Delete(testDb); } catch { }
+            }
+        }
+    }
 }

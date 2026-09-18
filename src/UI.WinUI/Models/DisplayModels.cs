@@ -172,7 +172,7 @@ public partial class AlarmDisplayItem : ObservableObject
     public static readonly SolidColorBrush AcknowledgedBrush = new(Color.FromArgb(255, 0x95, 0xA5, 0xA6));
 
     public long Id { get; set; }
-    public int MonitoredObjectId { get; set; }
+    public int? MonitoredObjectId { get; set; }
     public string ObjectName { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
     public string District { get; set; } = "Основной участок";

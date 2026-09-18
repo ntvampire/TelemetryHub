@@ -51,6 +51,13 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<AlarmEvent>()
             .HasIndex(a => a.Timestamp);
 
+        modelBuilder.Entity<AlarmEvent>()
+            .HasOne(a => a.MonitoredObject)
+            .WithMany()
+            .HasForeignKey(a => a.MonitoredObjectId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.Cascade);
+
         modelBuilder.Entity<OutgoingCommand>()
             .HasIndex(c => c.CreatedAt);
 
@@ -348,19 +355,51 @@ public class AppDbContext : DbContext
             cmd.ExecuteNonQuery();
         }
 
-        // 5. Проверка схемы таблицы Alarms на наличие EventType
+        // 5. Проверка схемы таблицы Alarms на nullable MonitoredObjectId и EventType
         var alarmColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        bool isMonitoredObjectNotNull = false;
         using (var alarmColCmd = conn.CreateCommand())
         {
             alarmColCmd.CommandText = "PRAGMA table_info(Alarms);";
             using var reader = alarmColCmd.ExecuteReader();
             while (reader.Read())
             {
-                alarmColumns.Add(reader.GetString(1));
+                string colName = reader.GetString(1);
+                alarmColumns.Add(colName);
+                if (string.Equals(colName, "MonitoredObjectId", StringComparison.OrdinalIgnoreCase))
+                {
+                    isMonitoredObjectNotNull = reader.GetInt32(3) == 1;
+                }
             }
         }
 
-        if (!alarmColumns.Contains("EventType"))
+        if (isMonitoredObjectNotNull)
+        {
+            using var migCmd = conn.CreateCommand();
+            migCmd.CommandText = @"
+                PRAGMA foreign_keys = OFF;
+                CREATE TABLE Alarms_new (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    MonitoredObjectId INTEGER NULL,
+                    EventType TEXT NOT NULL DEFAULT 'Alarm',
+                    Timestamp TEXT NOT NULL,
+                    Description TEXT NOT NULL,
+                    IsAcknowledged INTEGER NOT NULL DEFAULT 0,
+                    AcknowledgedAt TEXT NULL,
+                    FOREIGN KEY (MonitoredObjectId) REFERENCES Objects(Id) ON DELETE CASCADE
+                );
+                INSERT INTO Alarms_new (Id, MonitoredObjectId, EventType, Timestamp, Description, IsAcknowledged, AcknowledgedAt)
+                SELECT Id, MonitoredObjectId, 
+                       CASE WHEN (SELECT count(*) FROM pragma_table_info('Alarms') WHERE name='EventType') > 0 THEN EventType ELSE 'Alarm' END,
+                       Timestamp, Description, IsAcknowledged, AcknowledgedAt 
+                FROM Alarms;
+                DROP TABLE Alarms;
+                ALTER TABLE Alarms_new RENAME TO Alarms;
+                CREATE INDEX IF NOT EXISTS IX_Alarms_Timestamp ON Alarms(Timestamp);
+                PRAGMA foreign_keys = ON;";
+            migCmd.ExecuteNonQuery();
+        }
+        else if (!alarmColumns.Contains("EventType"))
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = "ALTER TABLE Alarms ADD COLUMN EventType TEXT NOT NULL DEFAULT 'Alarm';";

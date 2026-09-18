@@ -4,7 +4,7 @@ public class AlarmEvent
 {
     public long Id { get; set; }
 
-    public int MonitoredObjectId { get; set; }
+    public int? MonitoredObjectId { get; set; }
     public MonitoredObject? MonitoredObject { get; set; }
 
     public string EventType { get; set; } = "Alarm"; // "Alarm", "Report", "Command", "Response", "Service"

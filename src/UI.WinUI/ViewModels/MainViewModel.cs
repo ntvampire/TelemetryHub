@@ -143,7 +143,8 @@ public partial class MainViewModel : ObservableObject
                 .ToListAsync();
 
             var activeAlarmsByObj = unackAlarms
-                .GroupBy(a => a.MonitoredObjectId)
+                .Where(a => a.MonitoredObjectId.HasValue)
+                .GroupBy(a => a.MonitoredObjectId!.Value)
                 .ToDictionary(g => g.Key, g => g.First());
 
             // 4. Синхронизация списка объектов в памяти
@@ -204,14 +205,15 @@ public partial class MainViewModel : ObservableObject
                     _ => "Контроллер"
                 };
 
+                bool isServiceOrUnassigned = !a.MonitoredObjectId.HasValue || a.MonitoredObjectId.Value <= 0;
                 var displayItem = new AlarmDisplayItem
                 {
                     Id = a.Id,
                     MonitoredObjectId = a.MonitoredObjectId,
-                    ObjectName = relatedObj?.Name ?? $"Объект #{a.MonitoredObjectId}",
+                    ObjectName = relatedObj?.Name ?? (isServiceOrUnassigned ? "Служебные сообщения" : $"Объект #{a.MonitoredObjectId}"),
                     PhoneNumber = relatedObj?.PhoneNumber ?? "",
-                    District = string.IsNullOrWhiteSpace(relatedObj?.District) ? "Основной участок" : relatedObj.District,
-                    DeviceTypeName = devTypeName,
+                    District = string.IsNullOrWhiteSpace(relatedObj?.District) ? (isServiceOrUnassigned ? "Система" : "Основной участок") : relatedObj.District,
+                    DeviceTypeName = isServiceOrUnassigned ? "Служба" : devTypeName,
                     Timestamp = a.Timestamp,
                     Description = a.Description,
                     IsAcknowledged = a.IsAcknowledged,
