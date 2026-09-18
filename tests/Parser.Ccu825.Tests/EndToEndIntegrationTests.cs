@@ -204,4 +204,39 @@ public class EndToEndIntegrationTests : IDisposable
         var newestRemaining = await db.Alarms.OrderByDescending(a => a.Timestamp).FirstAsync();
         Assert.Equal("Событие #120", newestRemaining.Description);
     }
+
+    [Fact]
+    public async Task MonitoredObject_WithCreatedAtConstraint_InsertsSuccessfully()
+    {
+        string testDb = Path.Combine(Path.GetTempPath(), $"createdat_test_{Guid.NewGuid():N}.db");
+        try
+        {
+            AppDbContext.EnsureDatabaseUpdated(testDb);
+
+            using var db = new AppDbContext(testDb);
+            var obj = new MonitoredObject
+            {
+                Name = "Объект Проверки CreatedAt",
+                PhoneNumber = "+79198765432",
+                District = "Центральный",
+                DeviceType = DeviceType.Ksital,
+                DevicePassword = "12345",
+                CreatedAt = DateTime.UtcNow
+            };
+            db.Objects.Add(obj);
+            await db.SaveChangesAsync();
+
+            var retrieved = await db.Objects.FirstOrDefaultAsync(o => o.PhoneNumber == "+79198765432");
+            Assert.NotNull(retrieved);
+            Assert.Equal("Объект Проверки CreatedAt", retrieved.Name);
+            Assert.True(retrieved.CreatedAt > DateTime.MinValue);
+        }
+        finally
+        {
+            if (File.Exists(testDb))
+            {
+                try { File.Delete(testDb); } catch { }
+            }
+        }
+    }
 }

@@ -137,7 +137,9 @@ public class ObjectDetailsDialog : ContentDialog
             }
             catch (Exception ex)
             {
-                _infoBar.Message = $"Ошибка сохранения: {ex.Message}";
+                App.LogError("ObjectDetailsDialog.Save", ex);
+                string detail = ex.InnerException?.Message ?? ex.Message;
+                _infoBar.Message = $"Ошибка сохранения: {detail}";
                 _infoBar.IsOpen = true;
                 args.Cancel = true;
             }
@@ -173,18 +175,31 @@ public class ObjectDetailsDialog : ContentDialog
 
         if (_isNew)
         {
+            bool phoneExists = await db.Objects.AnyAsync(o => o.PhoneNumber == cleanPhone);
+            if (phoneExists)
+            {
+                throw new InvalidOperationException($"Объект с номером {cleanPhone} уже существует в базе данных.");
+            }
+
             var newObj = new MonitoredObject
             {
                 Name = name,
                 PhoneNumber = cleanPhone,
                 District = district,
                 DeviceType = devType,
-                DevicePassword = password
+                DevicePassword = password,
+                CreatedAt = DateTime.UtcNow
             };
             db.Objects.Add(newObj);
         }
         else
         {
+            bool phoneExists = await db.Objects.AnyAsync(o => o.PhoneNumber == cleanPhone && o.Id != _item.Id);
+            if (phoneExists)
+            {
+                throw new InvalidOperationException($"Объект с номером {cleanPhone} уже существует в базе данных.");
+            }
+
             var existing = await db.Objects.FirstOrDefaultAsync(o => o.Id == _item.Id);
             if (existing != null)
             {

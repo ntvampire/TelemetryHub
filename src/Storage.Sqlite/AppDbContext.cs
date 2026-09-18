@@ -41,6 +41,10 @@ public class AppDbContext : DbContext
             .HasIndex(o => o.PhoneNumber)
             .IsUnique();
 
+        modelBuilder.Entity<MonitoredObject>()
+            .Property(o => o.CreatedAt)
+            .HasDefaultValueSql("datetime('now')");
+
         modelBuilder.Entity<TelemetryRecord>()
             .HasIndex(t => t.Timestamp);
 
@@ -263,6 +267,13 @@ public class AppDbContext : DbContext
             {
                 existingColumns.Add(reader.GetString(1));
             }
+        }
+
+        if (!existingColumns.Contains("CreatedAt"))
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "ALTER TABLE Objects ADD COLUMN CreatedAt TEXT NOT NULL DEFAULT (datetime('now'));";
+            cmd.ExecuteNonQuery();
         }
 
         if (!existingColumns.Contains("District"))

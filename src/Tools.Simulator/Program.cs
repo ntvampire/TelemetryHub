@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -10,9 +10,8 @@ Console.WriteLine("Запуск генерации тестовой тревог
 
 string candidatePath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\..\..\telemetry.db"));
 string dbPath = File.Exists(candidatePath) ? candidatePath : "telemetry.db";
-
+AppDbContext.EnsureDatabaseUpdated(dbPath);
 using var db = new AppDbContext(dbPath);
-await db.Database.EnsureCreatedAsync();
 
 var targetObj = await db.Objects.FirstOrDefaultAsync();
 if (targetObj == null)

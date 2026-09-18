@@ -10,6 +10,7 @@ public class MonitoredObject
     public string PhoneNumber { get; set; } = string.Empty;
     public string District { get; set; } = "Основной участок";
     public string? Description { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DeviceType DeviceType { get; set; } = DeviceType.Ksital;
     public string DevicePassword { get; set; } = "00000";
