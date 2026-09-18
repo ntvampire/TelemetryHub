@@ -9,8 +9,13 @@ Write-Host "=== Build Telemetry Hub v$Version ===" -ForegroundColor Cyan
 $distDir = Join-Path $PSScriptRoot "dist\ksital-hub"
 $distRoot = Join-Path $PSScriptRoot "dist"
 
+if (Test-Path $distDir) {
+    Remove-Item $distDir -Recurse -Force
+}
 if (Test-Path $distRoot) {
-    Remove-Item $distRoot -Recurse -Force
+    Get-ChildItem -Path $distRoot -Filter "telemetry-hub-setup-*.exe" -ErrorAction SilentlyContinue | Remove-Item -Force
+} else {
+    New-Item -ItemType Directory -Path $distRoot -Force | Out-Null
 }
 New-Item -ItemType Directory -Path $distDir -Force | Out-Null
 
