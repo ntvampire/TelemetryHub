@@ -3,10 +3,15 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
-# SQLite temporary and journal files
+# SQLite database files and journals
+*.db
 *.db-shm
 *.db-wal
 *.db.bak
+
+# Test data files
+BackupData*.txt
+dist/
 
 # Application runtime logs
 *.log
