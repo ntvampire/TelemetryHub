@@ -44,7 +44,7 @@ public partial class AlarmWindow : Window
         _alarms.Add(initialAlarm);
 
         this.Title = $"ВНИМАНИЕ: ТРЕВОГА! — {initialAlarm.ObjectName}";
-        this.AppWindow.Resize(new Windows.Graphics.SizeInt32(580, 500));
+        this.AppWindow.Resize(new Windows.Graphics.SizeInt32(620, 640));
         this.CenterOnScreen();
         this.SetIsAlwaysOnTop(true);
 

@@ -68,22 +68,11 @@
                 </StackPanel>
             </Border>
 
-            <!-- Section 3: Notification settings and Testing -->
+            <!-- Section 3: Notification settings -->
             <Border Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="20">
-                <StackPanel Spacing="14">
+                <StackPanel Spacing="12">
                     <TextBlock Text="Звуковые уведомления и сирена" FontWeight="SemiBold" FontSize="16"/>
                     <ToggleSwitch Header="Включить звуковую сирену при авариях (220V, обрыв контура)" IsOn="{x:Bind ViewModel.IsSoundAlarmEnabled, Mode=TwoWay}"/>
-
-                    <MenuFlyoutSeparator Margin="0,4,0,4"/>
-
-                    <TextBlock Text="Проверка и симуляция тревоги" FontWeight="SemiBold" FontSize="14"/>
-                    <TextBlock Text="Имитация поступления критической аварии от удаленного контроллера для проверки звукового оповещения, всплывающего окна тревоги, кнопок «Подтвердить» / «Отложить» и фиксации в Журнале событий."
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" TextWrapping="Wrap"/>
-
-                    <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                        <Button x:Name="BtnTestAlarm" Content="Сгенерировать тестовую аварию" Click="BtnTestAlarm_Click"/>
-                        <TextBlock x:Name="TxtTestAlarmStatus" FontSize="12" VerticalAlignment="Center"/>
-                    </StackPanel>
                 </StackPanel>
             </Border>
 
