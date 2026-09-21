@@ -639,94 +639,9 @@ public partial class MainViewModel : ObservableObject
             IsServiceRestarting = true;
             ServiceStatusText = "Служба: Перезапуск...";
 
-            bool isWindowsServiceFound = false;
-            try
-            {
-                using var proc = Process.Start(new ProcessStartInfo
-                {
-                    FileName = "sc.exe",
-                    Arguments = "query KsitalTelemetryWorker",
-                    CreateNoWindow = true,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true
-                });
-                if (proc != null)
-                {
-                    string scOut = await proc.StandardOutput.ReadToEndAsync();
-                    await proc.WaitForExitAsync();
-                    if (scOut.Contains("KsitalTelemetryWorker", StringComparison.OrdinalIgnoreCase))
-                    {
-                        isWindowsServiceFound = true;
-                    }
-                }
-            }
-            catch { }
+            await Services.WorkerServiceManager.RestartWorkerAsync();
 
-            if (isWindowsServiceFound)
-            {
-                try
-                {
-                    var psi = new ProcessStartInfo
-                    {
-                        FileName = "cmd.exe",
-                        Arguments = "/c net stop KsitalTelemetryWorker & net start KsitalTelemetryWorker",
-                        Verb = "runas",
-                        UseShellExecute = true,
-                        WindowStyle = ProcessWindowStyle.Hidden
-                    };
-                    var p = Process.Start(psi);
-                    if (p != null) await p.WaitForExitAsync();
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[RestartWorkerServiceAsync] UAC / service restart error: {ex.Message}");
-                }
-            }
-            else
-            {
-                try
-                {
-                    var existing = Process.GetProcessesByName("Service.Worker");
-                    foreach (var p in existing)
-                    {
-                        try
-                        {
-                            p.Kill();
-                            await p.WaitForExitAsync();
-                        }
-                        catch { }
-                    }
-
-                    string baseDir = AppContext.BaseDirectory;
-                    string[] candidates = new[]
-                    {
-                        Path.Combine(baseDir, "WorkerService", "Service.Worker.exe"),
-                        Path.Combine(baseDir, "Service.Worker.exe"),
-                        Path.GetFullPath(Path.Combine(baseDir, @"..\..\..\..\..\Service.Worker\bin\Debug\net8.0\win-x64\Service.Worker.exe")),
-                        Path.GetFullPath(Path.Combine(baseDir, @"..\..\..\..\Service.Worker\bin\Debug\net8.0\win-x64\Service.Worker.exe")),
-                        Path.GetFullPath(Path.Combine(baseDir, @"..\..\..\..\..\..\src\Service.Worker\bin\Debug\net8.0\win-x64\Service.Worker.exe")),
-                        Path.GetFullPath(Path.Combine(baseDir, @"..\WorkerService\Service.Worker.exe"))
-                    };
-
-                    string? foundExe = candidates.FirstOrDefault(File.Exists);
-                    if (foundExe != null)
-                    {
-                        Process.Start(new ProcessStartInfo
-                        {
-                            FileName = foundExe,
-                            WorkingDirectory = Path.GetDirectoryName(foundExe),
-                            UseShellExecute = true,
-                            CreateNoWindow = false
-                        });
-                    }
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[RestartWorkerServiceAsync] Process restart error: {ex.Message}");
-                }
-            }
-
-            await Task.Delay(3000);
+            await Task.Delay(2500);
             await RefreshDataAsync();
         }
         catch (Exception ex)

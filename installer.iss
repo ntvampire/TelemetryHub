@@ -1,6 +1,6 @@
 #define MyAppName "Telemetry Hub"
 #ifndef MyAppVersion
-  #define MyAppVersion "2.0.1"
+  #define MyAppVersion "2.0.2"
 #endif
 #define MyAppPublisher "NTVampire"
 #define MyAppExeName "KsitalTelemetryHub.UI.WinUI.exe"
@@ -45,17 +45,12 @@ Name: "{autoprograms}\{#MyAppName}\Удалить {#MyAppName}"; Filename: "{uni
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\Assets\app.ico"; Tasks: desktopicon
 
 [Run]
-; Настройка и запуск системной службы Windows Service после завершения копирования
-Filename: "{sys}\sc.exe"; Parameters: "stop KsitalTelemetryWorker"; Flags: runhidden
-Filename: "{sys}\sc.exe"; Parameters: "delete KsitalTelemetryWorker"; Flags: runhidden
-Filename: "{sys}\sc.exe"; Parameters: "create KsitalTelemetryWorker binPath= """"{app}\WorkerService\Service.Worker.exe"""" start= auto DisplayName= ""Telemetry Hub - Сервис сбора данных"""; Flags: runhidden
-Filename: "{sys}\sc.exe"; Parameters: "failure KsitalTelemetryWorker reset= 60 actions= restart/5000/restart/5000/restart/5000"; Flags: runhidden
-Filename: "{sys}\sc.exe"; Parameters: "start KsitalTelemetryWorker"; Flags: runhidden
+; Регистрация и гарантированный запуск системной службы Windows Service после установки
+Filename: "{sys}\cmd.exe"; Parameters: "/c """"{app}\WorkerService\register_service.bat"""""; Flags: runhidden
 
 ; Предложение запустить интерфейс сразу после установки
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
 ; Остановка и удаление службы при удалении программы
-Filename: "{sys}\sc.exe"; Parameters: "stop KsitalTelemetryWorker"; Flags: runhidden
-Filename: "{sys}\sc.exe"; Parameters: "delete KsitalTelemetryWorker"; Flags: runhidden
+Filename: "{sys}\cmd.exe"; Parameters: "/c """"{app}\WorkerService\unregister_service.bat"""""; Flags: runhidden

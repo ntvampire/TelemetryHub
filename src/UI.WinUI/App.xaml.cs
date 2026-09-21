@@ -23,6 +23,11 @@ public partial class App : Application
         {
             LogError("Application.UnhandledException", e.Exception);
         };
+
+        AppDomain.CurrentDomain.ProcessExit += (s, e) =>
+        {
+            Services.WorkerServiceManager.StopWorkerIfStandalone();
+        };
     }
 
     public static void Log(string message)

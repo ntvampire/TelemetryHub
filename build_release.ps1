@@ -28,6 +28,10 @@ $workerDir = Join-Path $distDir "WorkerService"
 $workerProj = Join-Path $PSScriptRoot "src\Service.Worker\Service.Worker.csproj"
 dotnet publish $workerProj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o $workerDir
 
+# Копирование скриптов управления службой Windows
+Copy-Item (Join-Path $PSScriptRoot "src\Service.Worker\register_service.bat") $workerDir -Force
+Copy-Item (Join-Path $PSScriptRoot "src\Service.Worker\unregister_service.bat") $workerDir -Force
+
 Write-Host "3/4. Cleanup binaries..." -ForegroundColor Yellow
 Get-ChildItem -Path $distDir -Include "telemetry.db*","*.pdb" -Recurse | Remove-Item -Force
 

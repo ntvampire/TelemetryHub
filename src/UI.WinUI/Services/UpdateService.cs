@@ -58,7 +58,7 @@ public static class UpdateService
     public static string GetCurrentVersionString()
     {
         var ver = Assembly.GetExecutingAssembly().GetName().Version;
-        return ver != null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "2.0.1";
+        return ver != null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "2.0.2";
     }
 
     public static async Task<(bool HasUpdate, string CurrentVersion, string RemoteVersion, string? ReleaseNotes, string? DownloadUrl)> CheckForUpdatesAsync()

@@ -24,6 +24,12 @@ public partial class MainWindow : Window
         _timer.Tick += async (s, e) => await ViewModel.RefreshDataAsync();
         _timer.Start();
 
+        // Автоматический запуск службы сбора (Windows Service 24/7 либо скрытый фоновый процесс)
+        _ = Services.WorkerServiceManager.EnsureWorkerStartedAsync();
+
+        // При закрытии главного окна завершаем автономный фоновый процесс
+        this.Closed += (s, e) => Services.WorkerServiceManager.StopWorkerIfStandalone();
+
         // Установка иконки окна
         try
         {
