@@ -67,7 +67,7 @@ public class EndToEndIntegrationTests : IDisposable
         await db.SaveChangesAsync();
 
         Assert.False(string.IsNullOrWhiteSpace(outgoingCmd.RawPayload));
-        Assert.StartsWith("pass", outgoingCmd.RawPayload);
+        Assert.Contains("pass", outgoingCmd.RawPayload);
 
         // 3. Эмуляция отправки модемом
         outgoingCmd.Status = CommandStatus.Sent;

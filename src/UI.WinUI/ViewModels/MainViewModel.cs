@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -47,26 +48,76 @@ public partial class MainViewModel : ObservableObject
     }
 
     [ObservableProperty]
+    private string _totalObjectsText = "Объектов: 0";
+
+    [ObservableProperty]
     private string _comPortStatus = "COM: Ожидание";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ComStatusColor))]
     [NotifyPropertyChangedFor(nameof(ComStatusBrush))]
+    [NotifyPropertyChangedFor(nameof(ServiceStatusBrush))]
     private bool _isComConnected;
 
     public string ComStatusColor => IsComConnected ? "#2ECC71" : "#E74C3C";
     public SolidColorBrush ComStatusBrush => IsComConnected ? ObjectDisplayItem.GreenBrush : ObjectDisplayItem.RedBrush;
+    public SolidColorBrush ServiceStatusBrush => IsComConnected ? ObjectDisplayItem.GreenBrush : ObjectDisplayItem.RedBrush;
+
+    [ObservableProperty]
+    private string _serviceStatusText = "Служба: Остановлена";
+
+    [ObservableProperty]
+    private bool _isServiceRestarting;
 
     [ObservableProperty]
     private string _modemStatus = "Модем: Ожидание";
 
     [ObservableProperty]
+    private string _modemStatusText = "Модем: Нет связи";
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ModemStatusColor))]
     [NotifyPropertyChangedFor(nameof(ModemStatusBrush))]
+    [NotifyPropertyChangedFor(nameof(ModemSignalBrush))]
     private bool _isModemConnected;
 
     public string ModemStatusColor => IsModemConnected ? "#2ECC71" : "#E74C3C";
     public SolidColorBrush ModemStatusBrush => IsModemConnected ? ObjectDisplayItem.GreenBrush : ObjectDisplayItem.RedBrush;
+
+    [ObservableProperty]
+    private string _modemOperatorText = "Сеть: —";
+
+    [ObservableProperty]
+    private string _modemSignalText = "Сигнал: —";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ModemSignalBrush))]
+    private int _signalCsq;
+
+    [ObservableProperty]
+    private bool _isSignalRefreshing;
+
+    private static readonly SolidColorBrush GraySignalBrush = new(Microsoft.UI.ColorHelper.FromArgb(255, 140, 140, 140));
+    private static readonly SolidColorBrush YellowSignalBrush = new(Microsoft.UI.ColorHelper.FromArgb(255, 241, 196, 15));
+
+    public SolidColorBrush ModemSignalBrush
+    {
+        get
+        {
+            if (!IsModemConnected || SignalCsq <= 0) return GraySignalBrush;
+            if (SignalCsq >= 15) return ObjectDisplayItem.GreenBrush;
+            if (SignalCsq >= 10) return YellowSignalBrush;
+            return ObjectDisplayItem.RedBrush;
+        }
+    }
+
+    public static string FormatSignal(int csq, bool isModemConnected)
+    {
+        if (!isModemConnected) return "Сигнал: —";
+        if (csq <= 0 || csq == 99) return "Сигнал: Нет сети";
+        int percent = Math.Clamp((int)Math.Round(csq * 100.0 / 31.0), 0, 100);
+        return $"Сигнал: {percent}% (CSQ {csq})";
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(UnacknowledgedBadgeVisibility))]
@@ -104,19 +155,38 @@ public partial class MainViewModel : ObservableObject
             if (status != null && (DateTime.UtcNow - status.LastHeartbeat).TotalSeconds < 30)
             {
                 IsComConnected = true;
+                ServiceStatusText = $"Служба: Работает ({status.PortName})";
                 ComPortStatus = $"COM: {status.PortName}";
+
                 IsModemConnected = status.IsModemConnected;
-                ModemStatus = status.IsModemConnected 
-                    ? (status.SignalStrengthCsq > 0 ? $"Модем: CSQ {status.SignalStrengthCsq}" : "Модем: ОК")
-                    : "Модем: Ошибка";
+                ModemStatusText = status.IsModemConnected ? $"Модем: {status.PortName}" : "Модем: Ошибка";
+                ModemStatus = ModemStatusText;
+
+                ModemOperatorText = !string.IsNullOrWhiteSpace(status.OperatorName)
+                    ? $"Сеть: {status.OperatorName}"
+                    : (status.IsModemConnected ? "Сеть: Поиск..." : "Сеть: —");
+
+                SignalCsq = status.SignalStrengthCsq;
+                ModemSignalText = FormatSignal(status.SignalStrengthCsq, status.IsModemConnected);
             }
             else
             {
                 IsComConnected = false;
+                ServiceStatusText = "Служба: Остановлена";
                 ComPortStatus = "Служба сбора: Остановлена";
+
                 IsModemConnected = false;
+                ModemStatusText = "Модем: Нет связи";
                 ModemStatus = "Модем: Нет связи";
+
+                ModemOperatorText = "Сеть: —";
+                SignalCsq = 0;
+                ModemSignalText = "Сигнал: —";
             }
+
+            OnPropertyChanged(nameof(ServiceStatusBrush));
+            OnPropertyChanged(nameof(ModemStatusBrush));
+            OnPropertyChanged(nameof(ModemSignalBrush));
 
             // 2. Список объектов и пакетная выборка последних данных телеметрии (без N+1 запросов)
             var dbObjects = await db.Objects.AsNoTracking().ToListAsync();
@@ -186,6 +256,7 @@ public partial class MainViewModel : ObservableObject
 
             _allLoadedObjects.Clear();
             _allLoadedObjects.AddRange(currentMasterList);
+            TotalObjectsText = $"Объектов: {_allLoadedObjects.Count}";
             ApplyFilter();
 
             // 5. Загрузка Журнала событий (до 100 последних записей всех типов)
@@ -556,6 +627,171 @@ public partial class MainViewModel : ObservableObject
             db.Objects.Remove(obj);
             await db.SaveChangesAsync();
             await RefreshDataAsync();
+        }
+    }
+
+    [RelayCommand]
+    public async Task RestartWorkerServiceAsync()
+    {
+        if (IsServiceRestarting) return;
+        try
+        {
+            IsServiceRestarting = true;
+            ServiceStatusText = "Служба: Перезапуск...";
+
+            bool isWindowsServiceFound = false;
+            try
+            {
+                using var proc = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "sc.exe",
+                    Arguments = "query KsitalTelemetryWorker",
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true
+                });
+                if (proc != null)
+                {
+                    string scOut = await proc.StandardOutput.ReadToEndAsync();
+                    await proc.WaitForExitAsync();
+                    if (scOut.Contains("KsitalTelemetryWorker", StringComparison.OrdinalIgnoreCase))
+                    {
+                        isWindowsServiceFound = true;
+                    }
+                }
+            }
+            catch { }
+
+            if (isWindowsServiceFound)
+            {
+                try
+                {
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        Arguments = "/c net stop KsitalTelemetryWorker & net start KsitalTelemetryWorker",
+                        Verb = "runas",
+                        UseShellExecute = true,
+                        WindowStyle = ProcessWindowStyle.Hidden
+                    };
+                    var p = Process.Start(psi);
+                    if (p != null) await p.WaitForExitAsync();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[RestartWorkerServiceAsync] UAC / service restart error: {ex.Message}");
+                }
+            }
+            else
+            {
+                try
+                {
+                    var existing = Process.GetProcessesByName("Service.Worker");
+                    foreach (var p in existing)
+                    {
+                        try
+                        {
+                            p.Kill();
+                            await p.WaitForExitAsync();
+                        }
+                        catch { }
+                    }
+
+                    string baseDir = AppContext.BaseDirectory;
+                    string[] candidates = new[]
+                    {
+                        Path.Combine(baseDir, "WorkerService", "Service.Worker.exe"),
+                        Path.Combine(baseDir, "Service.Worker.exe"),
+                        Path.GetFullPath(Path.Combine(baseDir, @"..\..\..\..\..\Service.Worker\bin\Debug\net8.0\win-x64\Service.Worker.exe")),
+                        Path.GetFullPath(Path.Combine(baseDir, @"..\..\..\..\Service.Worker\bin\Debug\net8.0\win-x64\Service.Worker.exe")),
+                        Path.GetFullPath(Path.Combine(baseDir, @"..\..\..\..\..\..\src\Service.Worker\bin\Debug\net8.0\win-x64\Service.Worker.exe")),
+                        Path.GetFullPath(Path.Combine(baseDir, @"..\WorkerService\Service.Worker.exe"))
+                    };
+
+                    string? foundExe = candidates.FirstOrDefault(File.Exists);
+                    if (foundExe != null)
+                    {
+                        Process.Start(new ProcessStartInfo
+                        {
+                            FileName = foundExe,
+                            WorkingDirectory = Path.GetDirectoryName(foundExe),
+                            UseShellExecute = true,
+                            CreateNoWindow = false
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[RestartWorkerServiceAsync] Process restart error: {ex.Message}");
+                }
+            }
+
+            await Task.Delay(3000);
+            await RefreshDataAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[RestartWorkerServiceAsync] General error: {ex.Message}");
+        }
+        finally
+        {
+            IsServiceRestarting = false;
+        }
+    }
+
+    [RelayCommand]
+    public async Task RequestSignalCheckAsync()
+    {
+        if (IsSignalRefreshing) return;
+        if (!IsComConnected)
+        {
+            ModemSignalText = "Сигнал: Служба не в сети";
+            return;
+        }
+
+        try
+        {
+            IsSignalRefreshing = true;
+            ModemSignalText = "Сигнал: Запрос...";
+
+            using (var db = new AppDbContext(_dbPath))
+            {
+                var status = await db.SystemStatus.FirstOrDefaultAsync(s => s.Id == 1);
+                if (status != null)
+                {
+                    status.RequestSignalCheck = true;
+                    await db.SaveChangesAsync();
+                }
+            }
+
+            // Ожидание ответа службы (до 8 секунд с проверкой каждые 400 мс)
+            for (int i = 0; i < 20; i++)
+            {
+                await Task.Delay(400);
+                using var dbCheck = new AppDbContext(_dbPath);
+                var statusCheck = await dbCheck.SystemStatus.AsNoTracking().FirstOrDefaultAsync(s => s.Id == 1);
+                if (statusCheck != null && !statusCheck.RequestSignalCheck)
+                {
+                    SignalCsq = statusCheck.SignalStrengthCsq;
+                    ModemSignalText = FormatSignal(statusCheck.SignalStrengthCsq, statusCheck.IsModemConnected);
+                    if (!string.IsNullOrWhiteSpace(statusCheck.OperatorName))
+                    {
+                        ModemOperatorText = $"Сеть: {statusCheck.OperatorName}";
+                    }
+                    OnPropertyChanged(nameof(ModemSignalBrush));
+                    break;
+                }
+            }
+
+            await RefreshDataAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[RequestSignalCheckAsync] Error: {ex.Message}");
+        }
+        finally
+        {
+            IsSignalRefreshing = false;
         }
     }
 }

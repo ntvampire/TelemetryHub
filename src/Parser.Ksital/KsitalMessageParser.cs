@@ -12,6 +12,8 @@ public class KsitalMessageParser : ITelemetryParser
     private static readonly Regex Power220Regex = new(@"220V\s*:\s*(?<val>Есть|Нет)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex BatteryRegex = new(@"(?:Асс|Acc|АКБ)\s*:\s*(?<val>\d+(?:[\.,]\d+)?)V?", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex BalanceRegex = new(@"Баланс\s*:\s*(?<val>[+-]?\d+(?:[\.,]\d+)?)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex RelayRegex = new(@"(?:Реле|Rele|N)(?<index>[1-3])\s*[:=]\s*(?<val>Вкл|Выкл|1|0|ON|OFF)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex UprRegex = new(@"(?:УПР|Upr)\s*[:=]\s*(?<val>Вкл|Выкл|1|0|ON|OFF)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex AlarmKeywordRegex = new(@"(Тревога!|Авария!)(?<desc>.*)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     public DeviceType SupportedDeviceType => DeviceType.Ksital;
@@ -22,8 +24,16 @@ public class KsitalMessageParser : ITelemetryParser
         return Power220Regex.IsMatch(rawText) ||
                TempRegex.IsMatch(rawText) ||
                ZoneRegex.IsMatch(rawText) ||
+               BalanceRegex.IsMatch(rawText) ||
+               RelayRegex.IsMatch(rawText) ||
                rawText.Contains("220V:", StringComparison.OrdinalIgnoreCase) ||
-               rawText.Contains("Кситал", StringComparison.OrdinalIgnoreCase);
+               rawText.Contains("Кситал", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("контрол", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("kontrol", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("Реле", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("Upr", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("УПР", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("Kak dela", StringComparison.OrdinalIgnoreCase);
     }
 
     public TelemetrySnapshot Parse(string rawText, DateTime timestamp, string? senderPhone = null)
@@ -125,6 +135,23 @@ public class KsitalMessageParser : ITelemetryParser
             {
                 report.SimBalance = balVal;
             }
+        }
+
+        // 7. Состояние реле и выхода УПР
+        foreach (Match match in RelayRegex.Matches(text))
+        {
+            string idx = match.Groups["index"].Value;
+            string val = match.Groups["val"].Value.ToLowerInvariant();
+            bool isOn = val is "вкл" or "1" or "on";
+            report.Outputs[$"Relay{idx}"] = isOn;
+        }
+
+        var uprMatch = UprRegex.Match(text);
+        if (uprMatch.Success)
+        {
+            string val = uprMatch.Groups["val"].Value.ToLowerInvariant();
+            bool isOn = val is "вкл" or "1" or "on";
+            report.Outputs["Upr"] = isOn;
         }
 
         return report;

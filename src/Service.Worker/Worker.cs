@@ -67,6 +67,9 @@ public class Worker : BackgroundService
         _logger.LogInformation("Запуск сервиса мониторинга телеметрии. Порт: {Port}, Скорость: {Baud}", _currentPortName, _baudRate);
 
         GsmModemClient? modem = null;
+        string? cachedOperatorName = null;
+        int lastSignalCsq = 0;
+        DateTime lastSignalCheckTime = DateTime.MinValue;
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -81,6 +84,8 @@ public class Worker : BackgroundService
                     _logger.LogInformation("Получен запрос на смену COM-порта на {NewPort}...", currentStatus.RequestedPortName);
                     modem?.Dispose();
                     modem = null;
+                    cachedOperatorName = null;
+                    lastSignalCheckTime = DateTime.MinValue;
                     _currentPortName = currentStatus.RequestedPortName;
                     currentStatus.PortName = _currentPortName;
                     currentStatus.RequestedPortName = null;
@@ -95,13 +100,65 @@ public class Worker : BackgroundService
                     modem = new GsmModemClient(_currentPortName, _baudRate);
                     modem.Connect();
                     _logger.LogInformation("Модем успешно подключен.");
+
+                    // Однократный опрос оператора SIM-карты при подключении/восстановлении связи
+                    cachedOperatorName = modem.GetOperatorName();
+                    _logger.LogInformation("Оператор SIM-карты модема: {Op}", cachedOperatorName ?? "не определен");
+
+                    // Первичный опрос уровня сигнала
+                    lastSignalCsq = modem.GetSignalStrengthCsq();
+                    lastSignalCheckTime = DateTime.UtcNow;
+                    _logger.LogInformation("Уровень сигнала модема: CSQ {Csq}", lastSignalCsq);
+                }
+
+                // 1.1. Проверка уровня сигнала: раз в 5 минут либо по требованию (клик в UI)
+                bool isManualSignalRequest = currentStatus != null && currentStatus.RequestSignalCheck;
+                bool isTimeToPollSignal = DateTime.UtcNow - lastSignalCheckTime >= TimeSpan.FromMinutes(5);
+
+                if ((isManualSignalRequest || isTimeToPollSignal) && modem != null && modem.IsConnected)
+                {
+                    if (isManualSignalRequest)
+                    {
+                        _logger.LogInformation("Получен запрос оператора на внеочередной замер сигнала модема.");
+                    }
+
+                    lastSignalCsq = modem.GetSignalStrengthCsq();
+                    lastSignalCheckTime = DateTime.UtcNow;
+                    _logger.LogInformation("Обновлен уровень сигнала: CSQ {Csq}", lastSignalCsq);
+
+                    // Если при старте оператор не определился (SIM регистрировалась), опрашиваем повторно
+                    if (string.IsNullOrWhiteSpace(cachedOperatorName))
+                    {
+                        cachedOperatorName = modem.GetOperatorName();
+                    }
+
+                    if (isManualSignalRequest && currentStatus != null)
+                    {
+                        currentStatus.RequestSignalCheck = false;
+                        currentStatus.SignalStrengthCsq = lastSignalCsq;
+                        if (!string.IsNullOrEmpty(cachedOperatorName))
+                        {
+                            currentStatus.OperatorName = cachedOperatorName;
+                        }
+                        await db.SaveChangesAsync(stoppingToken);
+                    }
+                }
+                else if (isManualSignalRequest && currentStatus != null)
+                {
+                    currentStatus.RequestSignalCheck = false;
+                    await db.SaveChangesAsync(stoppingToken);
                 }
 
                 // 2. Отправка очереди исходящих команд оператора
-                await ProcessOutgoingCommandsAsync(modem, db, stoppingToken);
+                if (modem != null && modem.IsConnected)
+                {
+                    await ProcessOutgoingCommandsAsync(modem, db, stoppingToken);
+                }
 
                 // 3. Вычитка входящих SMS
-                var messages = modem.FetchAndPurgeSms();
+                var messages = (modem != null && modem.IsConnected) 
+                    ? modem.FetchAndPurgeSms() 
+                    : new List<DecodedSms>();
 
                 if (messages.Count > 0)
                 {
@@ -161,6 +218,8 @@ public class Worker : BackgroundService
                 await db.UpdateWorkerHeartbeatAsync(
                     portName: _currentPortName,
                     isModemConnected: true,
+                    signalCsq: lastSignalCsq,
+                    operatorName: cachedOperatorName,
                     newSmsProcessed: messages.Count,
                     cancellationToken: stoppingToken);
             }

@@ -21,7 +21,13 @@ public class OwenMessageParser : ITelemetryParser
         return rawText.Contains("OWEN", StringComparison.OrdinalIgnoreCase) ||
                rawText.Contains("ОВЕН", StringComparison.OrdinalIgnoreCase) ||
                rawText.Contains("ПЛК", StringComparison.OrdinalIgnoreCase) ||
-               rawText.Contains("Uакб", StringComparison.OrdinalIgnoreCase);
+               rawText.Contains("Uакб", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("TSYS", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("PSYS", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("QSYS", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("IRVIS", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("ИРВИС", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("CMD:", StringComparison.OrdinalIgnoreCase);
     }
 
     public TelemetrySnapshot Parse(string rawText, DateTime timestamp, string? senderPhone = null)

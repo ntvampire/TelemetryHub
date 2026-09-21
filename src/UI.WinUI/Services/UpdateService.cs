@@ -45,7 +45,7 @@ public class GitHubAsset
 public static class UpdateService
 {
     private const string RepoOwner = "ntvampire";
-    private const string RepoName = "ksital-telemetry-hub";
+    private const string RepoName = "TelemetryHub";
     private static readonly HttpClient HttpClient = new();
 
     static UpdateService()
@@ -58,7 +58,7 @@ public static class UpdateService
     public static string GetCurrentVersionString()
     {
         var ver = Assembly.GetExecutingAssembly().GetName().Version;
-        return ver != null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "2.0.0";
+        return ver != null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "2.0.1";
     }
 
     public static async Task<(bool HasUpdate, string CurrentVersion, string RemoteVersion, string? ReleaseNotes, string? DownloadUrl)> CheckForUpdatesAsync()

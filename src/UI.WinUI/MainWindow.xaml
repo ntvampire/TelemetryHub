@@ -18,16 +18,53 @@
             </NavigationView.MenuItems>
 
             <NavigationView.PaneFooter>
-                <!-- Hardware Status Indicator in Footer (No COM collision) -->
-                <StackPanel Margin="12,8" Spacing="6">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Ellipse Width="10" Height="10" Fill="{Binding ComStatusBrush}"/>
-                        <TextBlock Text="{Binding ComPortStatus}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                <!-- 5 индикаторов аппаратного и системного статуса -->
+                <StackPanel Margin="8,6" Spacing="2">
+                    <!-- 1. Количество объектов -->
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Padding="4,3">
+                        <FontIcon Glyph="&#xE80F;" FontSize="11" Width="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        <TextBlock Text="{Binding TotalObjectsText}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Ellipse Width="10" Height="10" Fill="{Binding ModemStatusBrush}"/>
-                        <TextBlock Text="{Binding ModemStatus}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+                    <!-- 2. Служба сбора данных (с возможностью перезапуска по клику) -->
+                    <Button Background="Transparent" BorderThickness="0" Padding="4,3" MinHeight="0" MinWidth="0"
+                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                            Command="{Binding RestartWorkerServiceCommand}"
+                            ToolTipService.ToolTip="Нажмите для запуска / перезапуска службы сбора данных">
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <Grid Width="12" HorizontalAlignment="Center">
+                                <Ellipse Width="9" Height="9" Fill="{Binding ServiceStatusBrush}"/>
+                            </Grid>
+                            <TextBlock Text="{Binding ServiceStatusText}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            <ProgressRing IsActive="{Binding IsServiceRestarting}" Width="12" Height="12" Margin="4,0,0,0"/>
+                        </StackPanel>
+                    </Button>
+
+                    <!-- 3. Модем и COM-порт -->
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Padding="4,3">
+                        <Grid Width="12" HorizontalAlignment="Center">
+                            <Ellipse Width="9" Height="9" Fill="{Binding ModemStatusBrush}"/>
+                        </Grid>
+                        <TextBlock Text="{Binding ModemStatusText}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                     </StackPanel>
+
+                    <!-- 4. Оператор сотовой связи SIM-карты -->
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Padding="4,3">
+                        <FontIcon Glyph="&#xE8EA;" FontSize="11" Width="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        <TextBlock Text="{Binding ModemOperatorText}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+
+                    <!-- 5. Уровень сигнала модема (опрос раз в 5 минут и по клику) -->
+                    <Button Background="Transparent" BorderThickness="0" Padding="4,3" MinHeight="0" MinWidth="0"
+                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                            Command="{Binding RequestSignalCheckCommand}"
+                            ToolTipService.ToolTip="Нажмите для замера уровня сигнала (автоматически опрашивается раз в 5 минут)">
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xEC3B;" FontSize="11" Width="12" Foreground="{Binding ModemSignalBrush}"/>
+                            <TextBlock Text="{Binding ModemSignalText}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            <ProgressRing IsActive="{Binding IsSignalRefreshing}" Width="12" Height="12" Margin="4,0,0,0"/>
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
             </NavigationView.PaneFooter>
 

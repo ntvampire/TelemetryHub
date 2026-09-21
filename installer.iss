@@ -1,6 +1,6 @@
 #define MyAppName "Telemetry Hub"
 #ifndef MyAppVersion
-  #define MyAppVersion "2.0.0"
+  #define MyAppVersion "2.0.1"
 #endif
 #define MyAppPublisher "NTVampire"
 #define MyAppExeName "KsitalTelemetryHub.UI.WinUI.exe"
@@ -37,7 +37,7 @@ Name: "{app}"; Permissions: users-modify
 
 [Files]
 ; Копируем все файлы скомпилированного UI и скриптов (исключая рабочие базы)
-Source: "dist\ksital-hub\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "telemetry.db*,*.pdb"
+Source: "dist\telemetry-hub\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "telemetry.db*,*.pdb"
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\Assets\app.ico"; Tasks: startmenuicon

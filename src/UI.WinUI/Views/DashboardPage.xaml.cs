@@ -44,6 +44,17 @@ public partial class DashboardPage : Page
         }
     }
 
+    private async void BtnCommandsObject_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is ObjectDisplayItem item)
+        {
+            var dialog = new ObjectCommandsDialog(item, ViewModel);
+            dialog.XamlRoot = this.XamlRoot;
+            await dialog.ShowAsync();
+            await ViewModel.RefreshDataAsync();
+        }
+    }
+
     private async void BtnAddObject_Click(object sender, RoutedEventArgs e)
     {
         var newItem = new ObjectDisplayItem

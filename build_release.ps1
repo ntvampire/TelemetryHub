@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 Write-Host "=== Build Telemetry Hub v$Version ===" -ForegroundColor Cyan
 
-$distDir = Join-Path $PSScriptRoot "dist\ksital-hub"
+$distDir = Join-Path $PSScriptRoot "dist\telemetry-hub"
 $distRoot = Join-Path $PSScriptRoot "dist"
 
 if (Test-Path $distDir) {

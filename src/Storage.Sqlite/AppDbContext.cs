@@ -248,7 +248,7 @@ public class AppDbContext : DbContext
             status.PortName = portName;
             status.IsWorkerAlive = true;
             status.IsModemConnected = isModemConnected;
-            if (signalCsq > 0) status.SignalStrengthCsq = signalCsq;
+            if (signalCsq >= 0) status.SignalStrengthCsq = signalCsq;
             if (!string.IsNullOrEmpty(operatorName)) status.OperatorName = operatorName;
             status.LastError = lastError;
             status.LastHeartbeat = DateTime.UtcNow;
@@ -361,6 +361,13 @@ public class AppDbContext : DbContext
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = "ALTER TABLE SystemStatus ADD COLUMN RequestedPortName TEXT NULL;";
+            cmd.ExecuteNonQuery();
+        }
+
+        if (!statusColumns.Contains("RequestSignalCheck"))
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "ALTER TABLE SystemStatus ADD COLUMN RequestSignalCheck INTEGER NOT NULL DEFAULT 0;";
             cmd.ExecuteNonQuery();
         }
 

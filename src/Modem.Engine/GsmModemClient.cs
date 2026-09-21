@@ -235,4 +235,80 @@ public class GsmModemClient : IDisposable
             }
         }
     }
+
+    public static int ParseSignalStrength(string response)
+    {
+        if (string.IsNullOrWhiteSpace(response)) return 0;
+        var match = Regex.Match(response, @"\+CSQ:\s*(\d+)\s*,");
+        if (match.Success && int.TryParse(match.Groups[1].Value, out int csq))
+        {
+            return csq == 99 ? 0 : csq;
+        }
+        return 0;
+    }
+
+    public static string? ParseOperatorName(string response)
+    {
+        if (string.IsNullOrWhiteSpace(response)) return null;
+        var match = Regex.Match(response, @"\+COPS:\s*\d+\s*,\s*\d+\s*,\s*""([^""]+)""");
+        if (match.Success)
+        {
+            string op = match.Groups[1].Value.Trim();
+            return op switch
+            {
+                "25001" => "MTS",
+                "25002" => "MegaFon",
+                "25099" => "Beeline",
+                "25020" => "Tele2",
+                _ => op
+            };
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Опрашивает уровень сигнала базовой станции GSM (AT+CSQ).
+    /// Возвращает значение RSSI (0..31, либо 0 если нет связи или 99).
+    /// </summary>
+    public int GetSignalStrengthCsq()
+    {
+        lock (_lock)
+        {
+            if (!IsConnected) return 0;
+
+            try
+            {
+                string res = SendCommand("AT+CSQ", timeoutMs: 2000);
+                return ParseSignalStrength(res);
+            }
+            catch
+            {
+            }
+
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Опрашивает имя сотового оператора, в сети которого зарегистрирована SIM-карта (AT+COPS?).
+    /// Возвращает название оператора ("MTS", "MegaFon" и т.д.) либо null.
+    /// </summary>
+    public string? GetOperatorName()
+    {
+        lock (_lock)
+        {
+            if (!IsConnected) return null;
+
+            try
+            {
+                string res = SendCommand("AT+COPS?", timeoutMs: 3000);
+                return ParseOperatorName(res);
+            }
+            catch
+            {
+            }
+
+            return null;
+        }
+    }
 }

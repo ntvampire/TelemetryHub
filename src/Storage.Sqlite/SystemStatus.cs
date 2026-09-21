@@ -19,4 +19,5 @@ public class SystemStatus
     public string? LastError { get; set; }
     public int TotalSmsProcessed { get; set; }
     public string? RequestedPortName { get; set; }
+    public bool RequestSignalCheck { get; set; }
 }

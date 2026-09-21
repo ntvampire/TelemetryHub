@@ -115,9 +115,15 @@
                                                         <TextBlock Text="{x:Bind TemperaturesFormatted, Mode=OneWay}" FontWeight="Medium" FontSize="13" TextTrimming="CharacterEllipsis"/>
                                                     </StackPanel>
 
-                                                    <!-- Column 5: Action Button -->
+                                                    <!-- Column 5: Action Buttons -->
                                                     <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                                        <Button Content="Управление" Click="BtnManageObject_Click" Tag="{x:Bind}"/>
+                                                        <Button Content="Редактировать" Click="BtnManageObject_Click" Tag="{x:Bind}"/>
+                                                        <Button Click="BtnCommandsObject_Click" Tag="{x:Bind}" Style="{ThemeResource AccentButtonStyle}">
+                                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                <FontIcon Glyph="&#xE756;" FontSize="13"/>
+                                                                <TextBlock Text="Команды"/>
+                                                            </StackPanel>
+                                                        </Button>
                                                     </StackPanel>
                                                 </Grid>
                                             </Border>

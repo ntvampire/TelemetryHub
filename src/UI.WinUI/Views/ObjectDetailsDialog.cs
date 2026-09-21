@@ -59,54 +59,7 @@ public class ObjectDetailsDialog : ContentDialog
         stack.Children.Add(_txtPassword);
         stack.Children.Add(_cmbType);
 
-        if (!_isNew)
-        {
-            var templates = DeviceCommandBuilder.GetTemplates(_item.DeviceType);
-            if (templates.Count > 0)
-            {
-                var commandHeader = new TextBlock
-                {
-                    Text = $"Быстрые SMS-команды ({_item.DeviceTypeName})",
-                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                    Margin = new Thickness(0, 8, 0, 0)
-                };
-                stack.Children.Add(commandHeader);
-
-                var grid = new Grid { ColumnSpacing = 8, RowSpacing = 8 };
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-                for (int i = 0; i < templates.Count; i++)
-                {
-                    var template = templates[i];
-                    var btn = new Button
-                    {
-                        Content = template.Title,
-                        HorizontalAlignment = HorizontalAlignment.Stretch
-                    };
-                    ToolTipService.SetToolTip(btn, $"{template.Description}\nШаблон: {template.Pattern}");
-
-                    btn.Click += async (s, e) =>
-                    {
-                        string password = _txtPassword.Text.Trim();
-                        string payload = DeviceCommandBuilder.BuildPayload(template.Pattern, password);
-                        await _vm.EnqueueCommandAsync(_item.Id, payload, template.Description);
-                        this.Hide();
-                    };
-
-                    if (i % 2 == 0)
-                    {
-                        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-                    }
-                    Grid.SetRow(btn, i / 2);
-                    Grid.SetColumn(btn, i % 2);
-                    grid.Children.Add(btn);
-                }
-                stack.Children.Add(grid);
-            }
-        }
-
-        Content = new ScrollViewer { Content = stack, MaxHeight = 540 };
+        Content = new ScrollViewer { Content = stack, MaxHeight = 500 };
 
         PrimaryButtonClick += async (s, args) =>
         {

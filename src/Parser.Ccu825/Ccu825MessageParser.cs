@@ -12,6 +12,7 @@ public class Ccu825MessageParser : ITelemetryParser
     private static readonly Regex BatRegex = new(@"(?:Vbat|Bat|АКБ)\s*[:=]\s*(\d+(?:[\.,]\d+)?)\s*V?", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex PowerRegex = new(@"(?:220V|Pwr|Питание|Сеть)\s*[:=]\s*([A-Za-zА-Яа-я0-9]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex InputRegex = new(@"\b(In\d+|Вход\d+)\s*[:=]\s*([A-Za-zА-Яа-я0-9]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex OutputRegex = new(@"\b(Out\d+|Выход\d+)\s*[:=]\s*([A-Za-zА-Яа-я0-9]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     public DeviceType SupportedDeviceType => DeviceType.Ccu825;
 
@@ -21,7 +22,16 @@ public class Ccu825MessageParser : ITelemetryParser
         return rawText.Contains("CCU", StringComparison.OrdinalIgnoreCase) ||
                rawText.Contains("RADS", StringComparison.OrdinalIgnoreCase) ||
                rawText.Contains("Vbat", StringComparison.OrdinalIgnoreCase) ||
-               InputRegex.IsMatch(rawText);
+               rawText.Contains("ARM", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("DISARM", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("PROTECT", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("Охрана", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("Наблюдение", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("Защита", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("SYNCTIME", StringComparison.OrdinalIgnoreCase) ||
+               rawText.Contains("VERSION", StringComparison.OrdinalIgnoreCase) ||
+               InputRegex.IsMatch(rawText) ||
+               OutputRegex.IsMatch(rawText);
     }
 
     public TelemetrySnapshot Parse(string rawText, DateTime timestamp, string? senderPhone = null)
@@ -107,6 +117,16 @@ public class Ccu825MessageParser : ITelemetryParser
             report.AlarmDescription = string.IsNullOrWhiteSpace(report.AlarmDescription)
                 ? string.Join(", ", alarms)
                 : $"{report.AlarmDescription}; {string.Join(", ", alarms)}";
+        }
+
+        // 5. Проверка состояния управляющих выходов
+        var outputMatches = OutputRegex.Matches(rawText);
+        foreach (Match om in outputMatches)
+        {
+            string outName = om.Groups[1].Value.ToUpperInvariant();
+            string outState = om.Groups[2].Value.ToUpperInvariant();
+            bool isOn = outState == "1" || outState.Contains("ON") || outState.Contains("ВКЛ");
+            report.Outputs[outName] = isOn;
         }
 
         return report;
