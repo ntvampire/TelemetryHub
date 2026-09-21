@@ -1,6 +1,6 @@
 #define MyAppName "Telemetry Hub"
 #ifndef MyAppVersion
-  #define MyAppVersion "2.0.2"
+  #define MyAppVersion "2.0.3"
 #endif
 #define MyAppPublisher "NTVampire"
 #define MyAppExeName "KsitalTelemetryHub.UI.WinUI.exe"
