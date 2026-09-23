@@ -47,24 +47,28 @@ public class ObjectCommandsDialog : ContentDialog
             HorizontalAlignment = HorizontalAlignment.Center
         };
 
-        // 1. Информационная карточка объекта
+        // 1. Информационная карточка объекта (2 строки)
         var infoPanel = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 16,
+            Spacing = 4,
             Margin = new Thickness(0, 0, 0, 4)
+        };
+
+        var row1 = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 24
+        };
+
+        var row2 = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 24
         };
 
         var phoneBlock = new TextBlock
         {
             Text = $"Номер: {_item.PhoneNumber}",
-            Foreground = Application.Current.Resources["TextFillColorSecondaryBrush"] as Brush,
-            FontSize = 12
-        };
-
-        var typeBlock = new TextBlock
-        {
-            Text = $"Контроллер: {_item.DeviceTypeName}",
             Foreground = Application.Current.Resources["TextFillColorSecondaryBrush"] as Brush,
             FontSize = 12
         };
@@ -76,6 +80,13 @@ public class ObjectCommandsDialog : ContentDialog
             FontSize = 12
         };
 
+        var typeBlock = new TextBlock
+        {
+            Text = $"Контроллер: {_item.DeviceTypeName}",
+            Foreground = Application.Current.Resources["TextFillColorSecondaryBrush"] as Brush,
+            FontSize = 12
+        };
+
         var passBlock = new TextBlock
         {
             Text = $"Пароль: {devicePassword}",
@@ -83,10 +94,14 @@ public class ObjectCommandsDialog : ContentDialog
             FontSize = 12
         };
 
-        infoPanel.Children.Add(phoneBlock);
-        infoPanel.Children.Add(typeBlock);
-        infoPanel.Children.Add(districtBlock);
-        infoPanel.Children.Add(passBlock);
+        row1.Children.Add(phoneBlock);
+        row1.Children.Add(districtBlock);
+
+        row2.Children.Add(typeBlock);
+        row2.Children.Add(passBlock);
+
+        infoPanel.Children.Add(row1);
+        infoPanel.Children.Add(row2);
 
         rootStack.Children.Add(_infoBar);
         rootStack.Children.Add(infoPanel);
