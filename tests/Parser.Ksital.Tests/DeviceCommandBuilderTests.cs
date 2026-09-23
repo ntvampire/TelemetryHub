@@ -91,4 +91,12 @@ public class DeviceCommandBuilderTests
         Assert.Equal("PASS:999 CMD:RESET", DeviceCommandBuilder.BuildPayload(reset.Pattern, "999"));
         Assert.Equal("PASS:999 CMD:START", DeviceCommandBuilder.BuildPayload(start.Pattern, "999"));
     }
+
+    [Fact]
+    public void GetDefaultPassword_ReturnsExpectedDefaultsForDevices()
+    {
+        Assert.Equal("00000", DeviceCommandBuilder.GetDefaultPassword(DeviceType.Ksital));
+        Assert.Equal("pass", DeviceCommandBuilder.GetDefaultPassword(DeviceType.Ccu825));
+        Assert.Equal("0000", DeviceCommandBuilder.GetDefaultPassword(DeviceType.OwenPlc));
+    }
 }

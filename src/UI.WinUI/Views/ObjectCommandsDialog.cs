@@ -24,14 +24,6 @@ public class ObjectCommandsDialog : ContentDialog
         Margin = new Thickness(0, 0, 0, 8)
     };
 
-    private readonly TextBox _txtPassword = new()
-    {
-        Header = "Пароль устройства (GSM-код)",
-        HorizontalAlignment = HorizontalAlignment.Stretch
-    };
-
-    private readonly List<Action> _previewUpdaters = new();
-
     public ObjectCommandsDialog(ObjectDisplayItem item, MainViewModel vm)
     {
         _item = item;
@@ -44,14 +36,9 @@ public class ObjectCommandsDialog : ContentDialog
         // Расширяем максимальную ширину карточки диалога в теме (не ограничивая внешнее окно), чтобы оно оставалось по центру
         this.Resources["ContentDialogMaxWidth"] = 600.0;
 
-        _txtPassword.Text = string.IsNullOrWhiteSpace(_item.DevicePassword) ? "00000" : _item.DevicePassword;
-        _txtPassword.TextChanged += (s, e) =>
-        {
-            foreach (var update in _previewUpdaters)
-            {
-                update();
-            }
-        };
+        string devicePassword = string.IsNullOrWhiteSpace(_item.DevicePassword)
+            ? DeviceCommandBuilder.GetDefaultPassword(_item.DeviceType)
+            : _item.DevicePassword.Trim();
 
         var rootStack = new StackPanel
         {
@@ -89,13 +76,20 @@ public class ObjectCommandsDialog : ContentDialog
             FontSize = 12
         };
 
+        var passBlock = new TextBlock
+        {
+            Text = $"Пароль: {devicePassword}",
+            Foreground = Application.Current.Resources["TextFillColorSecondaryBrush"] as Brush,
+            FontSize = 12
+        };
+
         infoPanel.Children.Add(phoneBlock);
         infoPanel.Children.Add(typeBlock);
         infoPanel.Children.Add(districtBlock);
+        infoPanel.Children.Add(passBlock);
 
         rootStack.Children.Add(_infoBar);
         rootStack.Children.Add(infoPanel);
-        rootStack.Children.Add(_txtPassword);
 
         // 2. Список команд по категориям
         var commandsStack = new StackPanel { Spacing = 14 };
@@ -157,15 +151,8 @@ public class ObjectCommandsDialog : ContentDialog
                     Margin = new Thickness(0, 2, 0, 0)
                 };
 
-                void UpdatePreview()
-                {
-                    string curPass = _txtPassword.Text.Trim();
-                    string p = DeviceCommandBuilder.BuildPayload(template.Pattern, curPass);
-                    payloadPreview.Text = $"SMS: \"{p}\"";
-                }
-
-                UpdatePreview();
-                _previewUpdaters.Add(UpdatePreview);
+                string p = DeviceCommandBuilder.BuildPayload(template.Pattern, devicePassword);
+                payloadPreview.Text = $"SMS: \"{p}\"";
 
                 textStack.Children.Add(titleText);
                 textStack.Children.Add(descText);
@@ -193,21 +180,7 @@ public class ObjectCommandsDialog : ContentDialog
                     try
                     {
                         sendBtn.IsEnabled = false;
-                        string curPass = _txtPassword.Text.Trim();
-                        string payload = DeviceCommandBuilder.BuildPayload(template.Pattern, curPass);
-
-                        // Синхронизация измененного пароля прибора в БД
-                        if (!string.IsNullOrWhiteSpace(curPass) && curPass != _item.DevicePassword)
-                        {
-                            _item.DevicePassword = curPass;
-                            using var db = new AppDbContext(App.DatabasePath);
-                            var obj = await db.Objects.FirstOrDefaultAsync(o => o.Id == _item.Id);
-                            if (obj != null)
-                            {
-                                obj.DevicePassword = curPass;
-                                await db.SaveChangesAsync();
-                            }
-                        }
+                        string payload = DeviceCommandBuilder.BuildPayload(template.Pattern, devicePassword);
 
                         await _vm.EnqueueCommandAsync(_item.Id, payload, $"{template.Title}: {template.Description}");
 

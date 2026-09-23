@@ -81,6 +81,14 @@ public static class DeviceCommandBuilder
         _ => System.Array.Empty<CommandTemplate>()
     };
 
+    public static string GetDefaultPassword(DeviceType type) => type switch
+    {
+        DeviceType.Ksital => "00000",
+        DeviceType.Ccu825 => "pass",
+        DeviceType.OwenPlc => "0000",
+        _ => "00000"
+    };
+
     public static string BuildPayload(string pattern, string password)
     {
         return pattern.Replace("{PASS}", password ?? string.Empty).Trim();

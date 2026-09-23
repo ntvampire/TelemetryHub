@@ -11,9 +11,9 @@ class Program
 {
     static void Main(string[] args)
     {
-        string srcPath = @"C:\Users\Mike\.gemini\antigravity\brain\43b72ff7-8c3b-4421-9f6a-26b266a35950\telemetry_icon_v2_1789986307350.jpg";
+        string srcPath = @"C:\Users\Mike\.gemini\antigravity\brain\43b72ff7-8c3b-4421-9f6a-26b266a35950\telemetry_icon_flat_v2_1790146746073.jpg";
         string targetIco = @"D:\Projects\ksital-telemetry-hub\src\UI.WinUI\Assets\app.ico";
-        string previewPng = @"C:\Users\Mike\.gemini\antigravity\brain\43b72ff7-8c3b-4421-9f6a-26b266a35950\scratch\icon_v2_preview.png";
+        string previewPng = @"C:\Users\Mike\.gemini\antigravity\brain\43b72ff7-8c3b-4421-9f6a-26b266a35950\scratch\icon_v2_flat_preview.png";
 
         using var srcImg = new Bitmap(srcPath);
         int w = srcImg.Width;

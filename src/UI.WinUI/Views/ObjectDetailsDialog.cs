@@ -49,15 +49,30 @@ public class ObjectDetailsDialog : ContentDialog
         _txtName.Text = _item.Name;
         _txtPhone.Text = _item.PhoneNumber;
         _txtDistrict.Text = string.IsNullOrWhiteSpace(_item.District) ? "Основной участок" : _item.District;
-        _txtPassword.Text = string.IsNullOrWhiteSpace(_item.DevicePassword) ? "00000" : _item.DevicePassword;
+        _txtPassword.Text = string.IsNullOrWhiteSpace(_item.DevicePassword)
+            ? DeviceCommandBuilder.GetDefaultPassword(_item.DeviceType)
+            : _item.DevicePassword;
+
+        _cmbType.SelectionChanged += (s, e) =>
+        {
+            if (_cmbType.SelectedIndex >= 0)
+            {
+                var selectedType = (DeviceType)_cmbType.SelectedIndex;
+                var defaultPass = DeviceCommandBuilder.GetDefaultPassword(selectedType);
+                if (_isNew || string.IsNullOrWhiteSpace(_txtPassword.Text) || IsKnownDefaultPassword(_txtPassword.Text.Trim()))
+                {
+                    _txtPassword.Text = defaultPass;
+                }
+            }
+        };
 
         var stack = new StackPanel { Spacing = 12, Width = 420 };
         stack.Children.Add(_infoBar);
         stack.Children.Add(_txtName);
         stack.Children.Add(_txtPhone);
         stack.Children.Add(_txtDistrict);
-        stack.Children.Add(_txtPassword);
         stack.Children.Add(_cmbType);
+        stack.Children.Add(_txtPassword);
 
         Content = new ScrollViewer { Content = stack, MaxHeight = 500 };
 
@@ -124,7 +139,9 @@ public class ObjectDetailsDialog : ContentDialog
         using var db = new AppDbContext(App.DatabasePath);
         var devType = (DeviceType)Math.Clamp(_cmbType.SelectedIndex, 0, 2);
         string district = string.IsNullOrWhiteSpace(_txtDistrict.Text) ? "Основной участок" : _txtDistrict.Text.Trim();
-        string password = string.IsNullOrWhiteSpace(_txtPassword.Text) ? "00000" : _txtPassword.Text.Trim();
+        string password = string.IsNullOrWhiteSpace(_txtPassword.Text)
+            ? DeviceCommandBuilder.GetDefaultPassword(devType)
+            : _txtPassword.Text.Trim();
 
         if (_isNew)
         {
@@ -173,4 +190,7 @@ public class ObjectDetailsDialog : ContentDialog
         await db.SaveChangesAsync();
         await _vm.RefreshDataAsync();
     }
+
+    private static bool IsKnownDefaultPassword(string pass) =>
+        pass == "00000" || pass == "pass" || pass == "0000" || pass == "1234";
 }

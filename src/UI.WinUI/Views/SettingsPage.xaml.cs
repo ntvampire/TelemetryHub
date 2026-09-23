@@ -292,7 +292,7 @@ public partial class SettingsPage : Page
                         PhoneNumber = cleanPhone,
                         District = string.IsNullOrWhiteSpace(target.District) ? "Основной участок" : target.District,
                         DeviceType = target.DeviceType,
-                        DevicePassword = string.IsNullOrWhiteSpace(target.Password) ? "00000" : target.Password
+                        DevicePassword = string.IsNullOrWhiteSpace(target.Password) ? DeviceCommandBuilder.GetDefaultPassword(target.DeviceType) : target.Password
                     });
                     added++;
                 }
@@ -353,7 +353,7 @@ public partial class SettingsPage : Page
                         PhoneNumber = cleanPhone,
                         District = string.IsNullOrWhiteSpace(target.District) ? "Основной район" : target.District,
                         DeviceType = target.DeviceType,
-                        DevicePassword = string.IsNullOrWhiteSpace(target.Password) ? "00000" : target.Password
+                        DevicePassword = string.IsNullOrWhiteSpace(target.Password) ? DeviceCommandBuilder.GetDefaultPassword(target.DeviceType) : target.Password
                     });
                     added++;
                 }
