@@ -1,0 +1,121 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="540" d:DesignHeight="520"
+        x:Class="KsitalTelemetryHub.UI.Avalonia.Views.AlarmWindow"
+        Title="ВНИМАНИЕ: ТРЕВОГА! — Telemetry Hub"
+        Width="520" Height="500"
+        WindowStartupLocation="CenterScreen"
+        Topmost="True"
+        CanResize="False">
+
+    <Grid RowDefinitions="Auto,*,Auto">
+        <!-- Top Red Warning Banner -->
+        <Border Grid.Row="0" Background="#D32F2F" Padding="20,14">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <TextBlock Grid.Column="0" Text="⚠️" FontSize="26" VerticalAlignment="Center" Margin="0,0,14,0"/>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="ТЕХНОЛОГИЧЕСКАЯ ТРЕВОГА" FontWeight="Bold" FontSize="17" Foreground="White"/>
+                    <TextBlock Text="Требуется немедленное внимание оператора" FontSize="12" Foreground="#FFCDD2"/>
+                </StackPanel>
+
+                <Border x:Name="BrdAlarmCount" Grid.Column="2" Background="#B71C1C" CornerRadius="12" Padding="10,4" VerticalAlignment="Center" IsVisible="false">
+                    <TextBlock x:Name="TxtAlarmCount" Text="1 из 1" FontSize="12" FontWeight="Bold" Foreground="White"/>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- Main Content Area -->
+        <ScrollViewer Grid.Row="1" Padding="20,16">
+            <StackPanel Spacing="14">
+                <!-- Card 1: Object Information -->
+                <Border Background="#252526" BorderBrush="#383838" BorderThickness="1" CornerRadius="8" Padding="16">
+                    <StackPanel Spacing="8">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="📍" FontSize="13" VerticalAlignment="Center"/>
+                            <TextBlock Text="Объект мониторинга" FontWeight="SemiBold" FontSize="13" Foreground="#9E9E9E"/>
+                        </StackPanel>
+
+                        <TextBlock x:Name="TxtObjectName" Text="Название объекта" FontWeight="Bold" FontSize="17"/>
+
+                        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" Margin="0,4,0,0">
+                            <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
+                                <TextBlock Text="Район / участок:" FontSize="11" Foreground="#757575"/>
+                                <TextBlock x:Name="TxtDistrict" Text="Основной участок" FontWeight="Medium" FontSize="13"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="0" Grid.Column="1" Spacing="2">
+                                <TextBlock Text="Тип прибора:" FontSize="11" Foreground="#757575"/>
+                                <TextBlock x:Name="TxtDeviceType" Text="КСИТАЛ GSM" FontWeight="Medium" FontSize="13"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1" Grid.Column="0" Spacing="2" Margin="0,8,0,0">
+                                <TextBlock Text="Номер SIM-карты:" FontSize="11" Foreground="#757575"/>
+                                <TextBlock x:Name="TxtPhoneNumber" Text="+7..." FontWeight="SemiBold" FontSize="13"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Card 2: Alarm Details -->
+                <Border Background="#252526" BorderBrush="#E74C3C" BorderThickness="1.5" CornerRadius="8" Padding="16">
+                    <StackPanel Spacing="8">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="🚨" FontSize="13" VerticalAlignment="Center"/>
+                            <TextBlock Text="Данные аварии" FontWeight="SemiBold" FontSize="13" Foreground="#9E9E9E"/>
+                        </StackPanel>
+
+                        <TextBlock x:Name="TxtAlarmDesc" Text="Описание тревоги" FontSize="15" FontWeight="SemiBold" Foreground="#FF5252" TextWrapping="Wrap"/>
+
+                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                            <TextBlock Text="Зафиксировано:" FontSize="12" Foreground="#9E9E9E"/>
+                            <TextBlock x:Name="TxtTimestamp" Text="18.09.2026 10:00:00" FontSize="12" FontWeight="SemiBold"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Pager if multiple alarms -->
+                <Grid x:Name="GridPager" IsVisible="false" ColumnDefinitions="Auto,*,Auto" Margin="0,4,0,0">
+                    <Button x:Name="BtnPrevAlarm" Content="◀ Предыдущая" Click="BtnPrevAlarm_Click" Grid.Column="0"/>
+                    <TextBlock x:Name="TxtPagerInfo" Text="Тревога 1 из 2" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Medium" Grid.Column="1"/>
+                    <Button x:Name="BtnNextAlarm" Content="Следующая ▶" Click="BtnNextAlarm_Click" Grid.Column="2"/>
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Bottom Action Buttons Bar -->
+        <Border Grid.Row="2" Background="#252526" BorderBrush="#383838" BorderThickness="0,1,0,0" Padding="20,12">
+            <Grid ColumnDefinitions="*,*">
+                <Button x:Name="BtnAcknowledge"
+                        Click="BtnAcknowledge_Click"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        Height="40"
+                        Background="#0078D7"
+                        Foreground="White"
+                        Grid.Column="0"
+                        Margin="0,0,6,0">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="✔" FontSize="13" VerticalAlignment="Center"/>
+                        <TextBlock Text="Подтвердить" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <Button x:Name="BtnSnooze"
+                        Click="BtnSnooze_Click"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center"
+                        Height="40"
+                        Grid.Column="1"
+                        Margin="6,0,0,0">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="⏰" FontSize="13" VerticalAlignment="Center"/>
+                        <TextBlock Text="Отложить (5 мин)" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

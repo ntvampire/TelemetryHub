@@ -1,0 +1,47 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="600"
+        x:Class="KsitalTelemetryHub.UI.Avalonia.Views.ObjectCommandsWindow"
+        Title="Команды управления"
+        Width="580" Height="620"
+        WindowStartupLocation="CenterOwner"
+        CanResize="false">
+
+    <Grid RowDefinitions="Auto,*,Auto" Margin="20">
+        <!-- Top Info Header -->
+        <StackPanel Grid.Row="0" Spacing="10" Margin="0,0,0,12">
+            <TextBlock x:Name="TxtTitle" Text="Команды управления" FontSize="18" FontWeight="SemiBold"/>
+
+            <!-- 2-line Info Card -->
+            <Border Background="#252526" BorderBrush="#383838" BorderThickness="1" CornerRadius="6" Padding="14,10">
+                <StackPanel Spacing="6">
+                    <StackPanel Orientation="Horizontal" Spacing="24">
+                        <TextBlock x:Name="TxtPhone" Text="Номер: " Foreground="#9E9E9E" FontSize="12"/>
+                        <TextBlock x:Name="TxtDistrict" Text="Участок: " Foreground="#9E9E9E" FontSize="12"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="24">
+                        <TextBlock x:Name="TxtDeviceType" Text="Контроллер: " Foreground="#9E9E9E" FontSize="12"/>
+                        <TextBlock x:Name="TxtPassword" Text="Пароль: " Foreground="#9E9E9E" FontSize="12"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Status alert -->
+            <Border x:Name="BrdStatus" IsVisible="false" Background="#1B5E20" CornerRadius="6" Padding="12,8">
+                <TextBlock x:Name="TxtStatus" Text="Команда отправлена" Foreground="White" FontSize="12" TextWrapping="Wrap"/>
+            </Border>
+        </StackPanel>
+
+        <!-- Command List -->
+        <ScrollViewer Grid.Row="1">
+            <StackPanel x:Name="PnlCommands" Spacing="12" Margin="0,0,10,0"/>
+        </ScrollViewer>
+
+        <!-- Bottom Action -->
+        <Grid Grid.Row="2" Margin="0,12,0,0">
+            <Button Content="Закрыть" Click="BtnClose_Click" HorizontalAlignment="Right" Padding="20,8"/>
+        </Grid>
+    </Grid>
+</Window>

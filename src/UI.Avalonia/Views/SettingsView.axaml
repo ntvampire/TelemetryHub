@@ -1,0 +1,95 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:KsitalTelemetryHub.UI.Avalonia.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="800"
+             x:Class="KsitalTelemetryHub.UI.Avalonia.Views.SettingsView"
+             x:DataType="vm:MainViewModel">
+
+    <ScrollViewer Margin="24">
+        <StackPanel Spacing="20" HorizontalAlignment="Stretch">
+            <TextBlock Text="Параметры системы и оборудования" FontSize="22" FontWeight="SemiBold"/>
+
+            <!-- Section 1: COM Port and Service -->
+            <Border Background="#252526" BorderBrush="#383838" BorderThickness="1" CornerRadius="8" Padding="20">
+                <StackPanel Spacing="14">
+                    <TextBlock Text="Аппаратный GSM-модем (Служба Service.Worker)" FontWeight="SemiBold" FontSize="16"/>
+                    <TextBlock Text="Служба сбора является монопольным владельцем COM-порта. Смена порта передается через IPC-таблицу базы данных без коллизий оборудования."
+                               Foreground="#9E9E9E" FontSize="12" TextWrapping="Wrap"/>
+
+                    <Grid ColumnDefinitions="Auto,Auto">
+                        <StackPanel Grid.Column="0" Margin="0,0,32,0">
+                            <TextBlock Text="Текущий порт службы" FontSize="11" Foreground="#9E9E9E"/>
+                            <TextBlock Text="{Binding ComPortStatus}" FontWeight="SemiBold" FontSize="14"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Статус связи с модемом" FontSize="11" Foreground="#9E9E9E"/>
+                            <TextBlock Text="{Binding ModemStatus}" FontWeight="SemiBold" FontSize="14"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="Выбор активного COM-порта модема" FontSize="13" FontWeight="Medium" Margin="0,6,0,0"/>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <ComboBox x:Name="CmbComPorts" Width="220" PlaceholderText="Выберите порт..."/>
+                        <Button x:Name="BtnRefreshPorts" Click="BtnRefreshPorts_Click" Padding="10,6" ToolTip.Tip="Обновить список портов">
+                            <TextBlock Text="🔄"/>
+                        </Button>
+                        <Button x:Name="BtnApplyPort" Content="Применить порт" Click="BtnApplyPort_Click" Padding="12,6"/>
+                    </StackPanel>
+                    <TextBlock x:Name="TxtPortStatus" FontSize="12" Foreground="#64B5F6"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Section 2: Database & Backup -->
+            <Border Background="#252526" BorderBrush="#383838" BorderThickness="1" CornerRadius="8" Padding="20">
+                <StackPanel Spacing="14">
+                    <TextBlock Text="База данных и резервное копирование" FontWeight="SemiBold" FontSize="16"/>
+                    <TextBlock Text="Рабочая база данных размещается в папке с приложением. Резервные копии создаются ежедневно с автоматической ротацией (сохраняется не более 10 последних копий)."
+                               Foreground="#9E9E9E" FontSize="12" TextWrapping="Wrap"/>
+
+                    <TextBlock Text="Папка для резервных копий (ежедневный бэкап и ротация)" FontSize="12" Foreground="#9E9E9E"/>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBox x:Name="TxtBackupDir" IsReadOnly="True" Grid.Column="0" Margin="0,0,8,0"/>
+                        <Button Content="Выбрать папку..." Click="BtnSelectBackupFolder_Click" Grid.Column="1" Padding="12,6"/>
+                    </Grid>
+
+                    <WrapPanel Orientation="Horizontal" Margin="0,4,0,0">
+                        <Button Content="Создать резервную копию" Click="BtnBackup_Click" Margin="0,0,8,8" Padding="12,6"/>
+                        <Button Content="Восстановить из копии..." Click="BtnRestore_Click" Margin="0,0,8,8" Padding="12,6"/>
+                        <Button Content="Импорт объектов (.xlsx, .csv)" Click="BtnImportExcel_Click" Margin="0,0,8,8" Padding="12,6"/>
+                        <Button Content="Импорт из GSMGuard (.txt)" Click="BtnImportGsmGuard_Click" Margin="0,0,8,8" Padding="12,6"/>
+                        <Button Content="Экспорт в Excel" Click="BtnExportExcel_Click" Margin="0,0,8,8" Padding="12,6"/>
+                    </WrapPanel>
+
+                    <TextBlock x:Name="TxtBackupStatus" Foreground="#2ECC71" FontSize="12" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Section 3: Notification settings -->
+            <Border Background="#252526" BorderBrush="#383838" BorderThickness="1" CornerRadius="8" Padding="20">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Звуковые уведомления и сирена" FontWeight="SemiBold" FontSize="16"/>
+                    <ToggleSwitch Content="Включить звуковую сирену при авариях (220V, обрыв контура)"
+                                  IsChecked="{Binding IsSoundAlarmEnabled, Mode=TwoWay}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Section 4: GitHub Updates -->
+            <Border Background="#252526" BorderBrush="#383838" BorderThickness="1" CornerRadius="8" Padding="20">
+                <StackPanel Spacing="14">
+                    <TextBlock Text="Обновление приложения Telemetry Hub" FontWeight="SemiBold" FontSize="16"/>
+                    <TextBlock Text="Проверка релизов на GitHub и автоматическое обновление программного комплекса."
+                               Foreground="#9E9E9E" FontSize="12" TextWrapping="Wrap"/>
+
+                    <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                        <TextBlock x:Name="TxtCurrentVersion" Text="Текущая версия: v2.0.5" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        <Button x:Name="BtnCheckUpdates" Content="Проверить обновления" Click="BtnCheckUpdates_Click" Padding="12,6"/>
+                    </StackPanel>
+
+                    <TextBlock x:Name="TxtUpdateStatus" FontSize="12" Foreground="#64B5F6" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

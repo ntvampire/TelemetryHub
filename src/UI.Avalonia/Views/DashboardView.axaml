@@ -1,0 +1,158 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:KsitalTelemetryHub.UI.Avalonia.ViewModels"
+             xmlns:m="using:KsitalTelemetryHub.UI.Avalonia.Models"
+             mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700"
+             x:Class="KsitalTelemetryHub.UI.Avalonia.Views.DashboardView"
+             x:DataType="vm:MainViewModel">
+
+    <Grid RowDefinitions="Auto,*" Margin="24">
+        <!-- Top Bar: Search and Quick Actions -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,16">
+            <TextBox Grid.Column="0"
+                     Watermark="Поиск объекта по названию, району или номеру телефона..."
+                     Text="{Binding SearchText, Mode=TwoWay}"
+                     VerticalContentAlignment="Center"
+                     Margin="0,0,12,0"/>
+
+            <Button Grid.Column="1"
+                    Click="BtnAddObject_Click"
+                    Padding="14,7"
+                    Margin="0,0,8,0">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="➕" FontSize="12" VerticalAlignment="Center"/>
+                    <TextBlock Text="Новый объект" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+
+            <Button Grid.Column="2"
+                    Command="{Binding RefreshDataCommand}"
+                    Padding="14,7">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="🔄" FontSize="12" VerticalAlignment="Center"/>
+                    <TextBlock Text="Обновить" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <!-- Grouped Objects List by District -->
+        <ScrollViewer Grid.Row="1">
+            <ItemsControl ItemsSource="{Binding GroupedObjects}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="m:ObjectDistrictGroup">
+                        <Expander IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
+                                  HorizontalAlignment="Stretch"
+                                  HorizontalContentAlignment="Stretch"
+                                  Margin="0,0,0,12">
+                            <Expander.Header>
+                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                    <TextBlock Text="📍" FontSize="14" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding District}" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    <Border Background="#333333" CornerRadius="10" Padding="8,2" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding CountText}" FontSize="12" Foreground="#BDBDBD"/>
+                                    </Border>
+                                    <Border IsVisible="{Binding HasActiveAlarm}"
+                                            Background="#E74C3C"
+                                            CornerRadius="10"
+                                            Padding="8,2"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="ТРЕВОГА" FontSize="11" FontWeight="Bold" Foreground="White"/>
+                                    </Border>
+                                </StackPanel>
+                            </Expander.Header>
+
+                            <Expander.Content>
+                                <ItemsControl ItemsSource="{Binding Items}" Margin="0,8,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="m:ObjectDisplayItem">
+                                            <Border Background="#252526"
+                                                    BorderBrush="#383838"
+                                                    BorderThickness="1"
+                                                    CornerRadius="8"
+                                                    Margin="0,0,0,8"
+                                                    Padding="16">
+                                                <Grid ColumnDefinitions="260,140,140,*,Auto">
+                                                    <!-- Column 0: Name, Phone, Device, District -->
+                                                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="3">
+                                                        <TextBlock Text="{Binding Name}"
+                                                                   FontWeight="SemiBold"
+                                                                   FontSize="15"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                                            <TextBlock Text="{Binding PhoneNumber}"
+                                                                       Foreground="#9E9E9E"
+                                                                       FontSize="12"/>
+                                                            <Border Background="#333333" CornerRadius="4" Padding="5,1">
+                                                                <TextBlock Text="{Binding DeviceTypeName}"
+                                                                           FontSize="10"
+                                                                           Foreground="#64B5F6"/>
+                                                            </Border>
+                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding District}"
+                                                                   Foreground="#757575"
+                                                                   FontSize="11"/>
+                                                    </StackPanel>
+
+                                                    <!-- Column 1: Power Status -->
+                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                                        <TextBlock Text="Электросеть" Foreground="#9E9E9E" FontSize="11"/>
+                                                        <TextBlock Text="{Binding PowerStatusText}"
+                                                                   FontWeight="Bold"
+                                                                   FontSize="13"
+                                                                   Foreground="{Binding StatusBadgeBrush}"/>
+                                                        <TextBlock Text="{Binding BatteryVoltage, StringFormat='{}{0:F1} В'}"
+                                                                   Foreground="#757575"
+                                                                   FontSize="11"/>
+                                                    </StackPanel>
+
+                                                    <!-- Column 2: Status / Alarm description -->
+                                                    <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
+                                                        <TextBlock Text="Статус" Foreground="#9E9E9E" FontSize="11"/>
+                                                        <TextBlock Text="{Binding AlarmDescription}"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   FontWeight="SemiBold"
+                                                                   FontSize="12"
+                                                                   Foreground="{Binding StatusBadgeBrush}"/>
+                                                    </StackPanel>
+
+                                                    <!-- Column 3: Temperatures -->
+                                                    <StackPanel Grid.Column="3" VerticalAlignment="Center" Spacing="2" Margin="10,0">
+                                                        <TextBlock Text="Показания датчиков" Foreground="#9E9E9E" FontSize="11"/>
+                                                        <TextBlock Text="{Binding TemperaturesFormatted}"
+                                                                   FontWeight="Medium"
+                                                                   FontSize="12"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                    </StackPanel>
+
+                                                    <!-- Column 4: Action Buttons -->
+                                                    <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                                        <Button Content="Редактировать"
+                                                                Click="BtnManageObject_Click"
+                                                                Tag="{Binding}"
+                                                                Padding="10,5"/>
+                                                        <Button Click="BtnCommandsObject_Click"
+                                                                Tag="{Binding}"
+                                                                Background="#0078D7"
+                                                                Foreground="White"
+                                                                Padding="10,5">
+                                                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                                                <TextBlock Text="⚡" FontSize="11" VerticalAlignment="Center"/>
+                                                                <TextBlock Text="Команды" VerticalAlignment="Center"/>
+                                                            </StackPanel>
+                                                        </Button>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Expander.Content>
+                        </Expander>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

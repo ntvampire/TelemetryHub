@@ -1,0 +1,64 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="480" d:DesignHeight="550"
+        x:Class="KsitalTelemetryHub.UI.Avalonia.Views.ObjectDetailsWindow"
+        Title="Параметры объекта"
+        Width="460" Height="520"
+        WindowStartupLocation="CenterOwner"
+        CanResize="false">
+
+    <Grid RowDefinitions="Auto,*,Auto" Margin="24">
+        <!-- Header -->
+        <TextBlock x:Name="TxtHeader" Grid.Row="0" Text="Параметры объекта" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,16"/>
+
+        <!-- Form fields -->
+        <ScrollViewer Grid.Row="1">
+            <StackPanel Spacing="12">
+                <!-- Error alert -->
+                <Border x:Name="BrdError" IsVisible="false" Background="#B71C1C" CornerRadius="6" Padding="12,8">
+                    <TextBlock x:Name="TxtError" Text="Ошибка" Foreground="White" FontSize="12" TextWrapping="Wrap"/>
+                </Border>
+
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Название объекта" FontSize="12" Foreground="#9E9E9E"/>
+                    <TextBox x:Name="TxtName" Watermark="Например: Котельная №1"/>
+                </StackPanel>
+
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Номер телефона SIM-карты (+7...)" FontSize="12" Foreground="#9E9E9E"/>
+                    <TextBox x:Name="TxtPhone" Watermark="+79991234567"/>
+                </StackPanel>
+
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Район / Участок" FontSize="12" Foreground="#9E9E9E"/>
+                    <TextBox x:Name="TxtDistrict" Watermark="Основной участок"/>
+                </StackPanel>
+
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Тип контроллера" FontSize="12" Foreground="#9E9E9E"/>
+                    <ComboBox x:Name="CmbType" HorizontalAlignment="Stretch">
+                        <ComboBoxItem Content="КСИТАЛ GSM"/>
+                        <ComboBoxItem Content="CCU-825"/>
+                        <ComboBoxItem Content="ОВЕН ПЛК"/>
+                    </ComboBox>
+                </StackPanel>
+
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Пароль устройства (GSM-код)" FontSize="12" Foreground="#9E9E9E"/>
+                    <TextBox x:Name="TxtPassword"/>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Buttons -->
+        <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" Margin="0,16,0,0">
+            <Button x:Name="BtnDelete" Grid.Column="0" Content="Удалить" Click="BtnDelete_Click" Background="#B71C1C" Foreground="White" Padding="14,7"/>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                <Button Content="Отмена" Click="BtnCancel_Click" Padding="14,7"/>
+                <Button Content="Сохранить" Click="BtnSave_Click" Background="#0078D7" Foreground="White" Padding="14,7"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

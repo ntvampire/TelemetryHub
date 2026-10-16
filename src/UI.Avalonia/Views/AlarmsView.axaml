@@ -1,0 +1,112 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:KsitalTelemetryHub.UI.Avalonia.ViewModels"
+             xmlns:m="using:KsitalTelemetryHub.UI.Avalonia.Models"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
+             x:Class="KsitalTelemetryHub.UI.Avalonia.Views.AlarmsView"
+             x:DataType="vm:MainViewModel">
+
+    <Grid RowDefinitions="Auto,*" Margin="24">
+        <!-- Top Actions Bar -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                <TextBlock Text="⚠️" FontSize="20" VerticalAlignment="Center"/>
+                <TextBlock Text="Журнал событий" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <Border IsVisible="{Binding HasUnacknowledgedAlarms}"
+                        Background="#E74C3C"
+                        CornerRadius="10"
+                        Padding="8,2"
+                        VerticalAlignment="Center">
+                    <TextBlock Text="{Binding UnacknowledgedAlarmsCount}"
+                               FontSize="11"
+                               FontWeight="Bold"
+                               Foreground="White"/>
+                </Border>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button Content="Подтвердить все"
+                        Command="{Binding AcknowledgeAllAlarmsCommand}"
+                        Padding="12,6"/>
+                <Button Content="Обновить"
+                        Command="{Binding RefreshDataCommand}"
+                        Padding="12,6"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Events List -->
+        <ScrollViewer Grid.Row="1">
+            <ItemsControl ItemsSource="{Binding ActiveAlarms}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="m:AlarmDisplayItem">
+                        <Border Background="#252526"
+                                BorderBrush="{Binding EventBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Margin="0,0,0,10"
+                                Padding="16">
+                            <Grid ColumnDefinitions="Auto,240,*,Auto">
+                                <!-- Type Color Indicator Strip -->
+                                <Border Grid.Column="0"
+                                        Width="4"
+                                        Background="{Binding EventBrush}"
+                                        CornerRadius="2"
+                                        Margin="0,0,16,0"/>
+
+                                <!-- Object info -->
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+                                    <TextBlock Text="{Binding ObjectName}"
+                                               FontWeight="SemiBold"
+                                               FontSize="15"/>
+                                    <TextBlock Text="{Binding PhoneNumber}"
+                                               Foreground="#9E9E9E"
+                                               FontSize="12"/>
+                                    <TextBlock Text="{Binding TimestampFormatted}"
+                                               Foreground="#757575"
+                                               FontSize="11"/>
+                                </StackPanel>
+
+                                <!-- Event description -->
+                                <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="6" Margin="12,0">
+                                    <Border Background="{Binding EventBrush}"
+                                            CornerRadius="4"
+                                            Padding="6,2"
+                                            HorizontalAlignment="Left">
+                                        <TextBlock Text="{Binding EventTypeTitle}"
+                                                   FontSize="10"
+                                                   FontWeight="Bold"
+                                                   Foreground="White"/>
+                                    </Border>
+                                    <TextBlock Text="{Binding Description}"
+                                               FontSize="13"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+
+                                <!-- Action button / status badge -->
+                                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <Button Content="Подтвердить"
+                                            IsVisible="{Binding CanAcknowledge}"
+                                            Click="BtnAcknowledge_Click"
+                                            Tag="{Binding}"
+                                            Padding="12,6"
+                                            VerticalAlignment="Center"/>
+                                    <Border IsVisible="{Binding IsAcknowledgedBadgeVisible}"
+                                            Background="#333333"
+                                            CornerRadius="4"
+                                            Padding="8,4"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="Подтверждено"
+                                                   FontSize="12"
+                                                   Foreground="#9E9E9E"/>
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </Grid>
+</UserControl>
