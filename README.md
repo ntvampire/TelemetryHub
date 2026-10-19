@@ -2,7 +2,7 @@
 
 [![Релиз](https://img.shields.io/github/v/release/ntvampire/TelemetryHub?color=0078D6&label=Релиз)](https://github.com/ntvampire/TelemetryHub/releases/latest)
 [![Сборка](https://github.com/ntvampire/TelemetryHub/actions/workflows/release.yml/badge.svg)](https://github.com/ntvampire/TelemetryHub/actions)
-[![Платформа](https://img.shields.io/badge/Платформа-Windows%207%20%7C%208%20%7C%2010%20%7C%2011%20%7C%20Linux-0078D6?logo=windows)](https://github.com/ntvampire/TelemetryHub)
+[![Платформа](https://img.shields.io/badge/Платформа-Windows%207%20(x86%2Fx64)%20%7C%208%20%7C%2010%20%7C%2011%20%7C%20Linux-0078D6?logo=windows)](https://github.com/ntvampire/TelemetryHub)
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![Статус](https://img.shields.io/badge/Статус-В%20эксплуатации%20%2B%20Кроссплатформенная%20Beta-success)](#)
 
@@ -10,7 +10,7 @@
 > **Текущий статус проекта:** Программный комплекс находится в активной эксплуатации. Поддерживается автономный сбор телеметрии 24/7 в качестве системной службы, автоматические обновления и диспетчеризация контроллеров **КСИТАЛ GSM**, **RADS CCU-825** и **ОВЕН ПЛК**.
 > Доступны две редакции диспетчерского интерфейса:
 > * **Основная (WinUI 3):** для современных рабочих станций с Windows 10 и 11 (Fluent Design).
-> * **Универсальная (Avalonia UI / Beta):** кроссплатформенная редакция с гарантированным запуском на **Windows 7 SP1**, 8, 8.1, 10, 11 и **Linux**.
+> * **Универсальная (Avalonia UI / Beta):** кроссплатформенная редакция с гарантированным запуском на **Windows 7 SP1 (32-бит и 64-бит)**, 8, 8.1, 10, 11 и **Linux**.
 
 Централизованный диспетчерский пункт телеметрии и мониторинга для контроллеров **КСИТАЛ GSM**, **RADS CCU-825** и **ОВЕН ПЛК**.
 
@@ -24,8 +24,9 @@
 
 ### 1. Выбор и загрузка дистрибутива
 В разделе [Releases](https://github.com/ntvampire/TelemetryHub/releases) доступны готовые пакеты:
-* **`telemetry-hub-win7-11-setup-vX.X.X.exe`** — **Универсальный установщик Windows** (на базе Avalonia UI). Рекомендуется для рабочих мест с **Windows 7 SP1**, 8, 8.1, а также Windows 10 и 11.
-* **`telemetry-hub-setup-vX.X.X.exe`** — **Редакция WinUI 3**. Для современных рабочих станций с **Windows 10** и **Windows 11** с поддержкой Windows App SDK.
+* **`telemetry-hub-win7-x86-setup-vX.X.X.exe`** — **32-битный установщик Windows** (на базе Avalonia UI). Специально для рабочих мест с **Windows 7 SP1 x86 (32-бит)**, а также 32-битных версий Windows 8/10/11.
+* **`telemetry-hub-win7-11-setup-vX.X.X.exe`** — **64-битный универсальный установщик Windows** (на базе Avalonia UI). Для рабочих мест с **Windows 7 SP1 x64**, 8, 8.1, 10 и 11 (x64).
+* **`telemetry-hub-setup-vX.X.X.exe`** — **Редакция WinUI 3 (x64)**. Для современных рабочих станций с **Windows 10** и **Windows 11** с поддержкой Windows App SDK.
 * **`telemetry-hub-linux-x64-vX.X.X.tar.gz`** — **Пакет для Linux (x64)**. Портативный архив со скриптом запуска `run.sh` и фоновой службой.
 
 ### 2. Запуск установки на Windows

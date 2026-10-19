@@ -9,11 +9,13 @@ Write-Host "=== Build Telemetry Hub v$Version ===" -ForegroundColor Cyan
 $distRoot = Join-Path $PSScriptRoot "dist"
 $distWinUI = Join-Path $distRoot "telemetry-hub"
 $distAvalonia = Join-Path $distRoot "telemetry-hub-avalonia"
+$distAvaloniaX86 = Join-Path $distRoot "telemetry-hub-avalonia-x86"
 $distLinux = Join-Path $distRoot "telemetry-hub-linux"
 
 # 0. Очистка каталогов сборки
 if (Test-Path $distWinUI) { Remove-Item $distWinUI -Recurse -Force }
 if (Test-Path $distAvalonia) { Remove-Item $distAvalonia -Recurse -Force }
+if (Test-Path $distAvaloniaX86) { Remove-Item $distAvaloniaX86 -Recurse -Force }
 if (Test-Path $distLinux) { Remove-Item $distLinux -Recurse -Force }
 if (Test-Path $distRoot) {
     Get-ChildItem -Path $distRoot -Filter "telemetry-hub-*.exe" -ErrorAction SilentlyContinue | Remove-Item -Force
@@ -24,6 +26,7 @@ if (Test-Path $distRoot) {
 
 New-Item -ItemType Directory -Path $distWinUI -Force | Out-Null
 New-Item -ItemType Directory -Path $distAvalonia -Force | Out-Null
+New-Item -ItemType Directory -Path $distAvaloniaX86 -Force | Out-Null
 New-Item -ItemType Directory -Path $distLinux -Force | Out-Null
 
 $workerProj = Join-Path $PSScriptRoot "src\Service.Worker\Service.Worker.csproj"
@@ -61,9 +64,24 @@ Copy-Item (Join-Path $PSScriptRoot "src\UI.Avalonia\Assets\app.ico") $assetsDirA
 Get-ChildItem -Path $distAvalonia -Include "telemetry.db*","*.pdb" -Recurse | Remove-Item -Force
 
 # ==============================================================================
-# 3. ПУБЛИКАЦИЯ ДЛЯ LINUX (LINUX-X64)
+# 3. ПУБЛИКАЦИЯ 32-БИТНОЙ ВЕРСИИ AVALONIA (WINDOWS 7 / 8 / 10 / 11 x86)
 # ==============================================================================
-Write-Host "3/6. Publish UI.Avalonia & Worker (linux-x64)..." -ForegroundColor Yellow
+Write-Host "3/7. Publish UI.Avalonia & Worker (win-x86 32-bit)..." -ForegroundColor Yellow
+dotnet publish $avaloniaProj -c Release -r win-x86 --self-contained true -p:PublishSingleFile=false -o $distAvaloniaX86
+
+$workerDirAvaloniaX86 = Join-Path $distAvaloniaX86 "WorkerService"
+dotnet publish $workerProj -c Release -r win-x86 --self-contained true -p:PublishSingleFile=false -o $workerDirAvaloniaX86
+Copy-Item (Join-Path $PSScriptRoot "src\Service.Worker\register_service.bat") $workerDirAvaloniaX86 -Force
+Copy-Item (Join-Path $PSScriptRoot "src\Service.Worker\unregister_service.bat") $workerDirAvaloniaX86 -Force
+$assetsDirAvaloniaX86 = Join-Path $distAvaloniaX86 "Assets"
+if (-not (Test-Path $assetsDirAvaloniaX86)) { New-Item -ItemType Directory -Path $assetsDirAvaloniaX86 -Force | Out-Null }
+Copy-Item (Join-Path $PSScriptRoot "src\UI.Avalonia\Assets\app.ico") $assetsDirAvaloniaX86 -Force
+Get-ChildItem -Path $distAvaloniaX86 -Include "telemetry.db*","*.pdb" -Recurse | Remove-Item -Force
+
+# ==============================================================================
+# 4. ПУБЛИКАЦИЯ ДЛЯ LINUX (LINUX-X64)
+# ==============================================================================
+Write-Host "4/7. Publish UI.Avalonia & Worker (linux-x64)..." -ForegroundColor Yellow
 dotnet publish $avaloniaProj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=false -o $distLinux
 
 $workerDirLinux = Join-Path $distLinux "WorkerService"
@@ -81,9 +99,9 @@ Set-Content -Path (Join-Path $distLinux "run.sh") -Value $runShContent -NoNewlin
 Get-ChildItem -Path $distLinux -Include "telemetry.db*","*.pdb" -Recurse | Remove-Item -Force
 
 # ==============================================================================
-# 4. УПАКОВКА LINUX В .tar.gz
+# 5. УПАКОВКА LINUX В .tar.gz
 # ==============================================================================
-Write-Host "4/6. Packaging Linux tar.gz..." -ForegroundColor Yellow
+Write-Host "5/7. Packaging Linux tar.gz..." -ForegroundColor Yellow
 $linuxArchive = Join-Path $distRoot "telemetry-hub-linux-x64-v$Version.tar.gz"
 tar -czf $linuxArchive -C $distLinux .
 if (Test-Path $linuxArchive) {
@@ -91,9 +109,9 @@ if (Test-Path $linuxArchive) {
 }
 
 # ==============================================================================
-# 5. СБОРКА УСТАНОВЩИКОВ INNO SETUP
+# 6. СБОРКА УСТАНОВЩИКОВ INNO SETUP
 # ==============================================================================
-Write-Host "5/6. Searching Inno Setup compiler..." -ForegroundColor Yellow
+Write-Host "6/7. Searching Inno Setup compiler..." -ForegroundColor Yellow
 $isccCandidates = @(
     "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
     "C:\Program Files\Inno Setup 6\ISCC.exe",
@@ -106,8 +124,8 @@ if (-not $isccCandidates) {
 } else {
     $iscc = $isccCandidates[0]
     
-    # 5.1. Установщик WinUI 3 (Win 10/11)
-    Write-Host "Compiling WinUI 3 Setup (Win 10/11)..." -ForegroundColor Yellow
+    # 6.1. Установщик WinUI 3 (Win 10/11 x64)
+    Write-Host "Compiling WinUI 3 Setup (Win 10/11 x64)..." -ForegroundColor Yellow
     $issWinUI = Join-Path $PSScriptRoot "installer.iss"
     & $iscc "/DMyAppVersion=$Version" $issWinUI
     $setupWinUI = Join-Path $distRoot "telemetry-hub-setup-v$Version.exe"
@@ -115,13 +133,22 @@ if (-not $isccCandidates) {
         Write-Host "SUCCESS: WinUI 3 Installer ready -> $setupWinUI" -ForegroundColor Green
     }
 
-    # 5.2. Универсальный установщик Avalonia (Win 7/8/10/11)
-    Write-Host "Compiling Universal Avalonia Setup (Win 7/8/10/11)..." -ForegroundColor Yellow
+    # 6.2. Универсальный 64-битный установщик Avalonia (Win 7-11 x64)
+    Write-Host "Compiling Universal Avalonia Setup (Win 7-11 x64)..." -ForegroundColor Yellow
     $issAvalonia = Join-Path $PSScriptRoot "installer-avalonia.iss"
     & $iscc "/DMyAppVersion=$Version" $issAvalonia
     $setupAvalonia = Join-Path $distRoot "telemetry-hub-win7-11-setup-v$Version.exe"
     if (Test-Path $setupAvalonia) {
-        Write-Host "SUCCESS: Universal Windows Setup ready -> $setupAvalonia" -ForegroundColor Green
+        Write-Host "SUCCESS: Universal Windows Setup (x64) ready -> $setupAvalonia" -ForegroundColor Green
+    }
+
+    # 6.3. Универсальный 32-битный установщик Avalonia (Win 7-11 x86)
+    Write-Host "Compiling 32-bit Avalonia Setup (Win 7-11 x86)..." -ForegroundColor Yellow
+    $issAvaloniaX86 = Join-Path $PSScriptRoot "installer-avalonia-x86.iss"
+    & $iscc "/DMyAppVersion=$Version" $issAvaloniaX86
+    $setupAvaloniaX86 = Join-Path $distRoot "telemetry-hub-win7-x86-setup-v$Version.exe"
+    if (Test-Path $setupAvaloniaX86) {
+        Write-Host "SUCCESS: Universal Windows Setup (x86) ready -> $setupAvaloniaX86" -ForegroundColor Green
     }
 }
 

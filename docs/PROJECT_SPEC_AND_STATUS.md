@@ -30,9 +30,10 @@
 2. **Универсальная кроссплатформенная редакция (Avalonia UI Beta):**
    - Технологический стек: C# / .NET 8, Avalonia UI 11.1.3 (графический движок Skia).
    - Не зависит от Windows App SDK и DirectX 12.
-   - Поддерживаемые ОС: **Windows 7 SP1**, Windows 8, Windows 8.1, Windows 10, Windows 11 (x64) и **Linux** (x64).
+   - Поддерживаемые ОС: **Windows 7 SP1 (32-бит x86 и 64-бит x64)**, Windows 8, Windows 8.1, Windows 10, Windows 11 и **Linux** (x64).
    - Вшит `app.manifest` с поддержкой GUID Windows 7 (`{35138b9a-5d96-4fbd-8e2d-a2440225f93a}`).
-   - Инсталлятор для Windows 7–11: `telemetry-hub-win7-11-setup-vX.X.X.exe`.
+   - Инсталлятор для Windows 7–11 (32-бит): `telemetry-hub-win7-x86-setup-vX.X.X.exe`.
+   - Инсталлятор для Windows 7–11 (64-бит): `telemetry-hub-win7-11-setup-vX.X.X.exe`.
    - Пакет для Linux: `telemetry-hub-linux-x64-vX.X.X.tar.gz` (со скриптом запуска `run.sh`).
 
 ---
@@ -150,7 +151,7 @@ tests/
 | **v2.0.4** | Октябрь 2026 | Строгая плоская векторная иконка (вариант 2.2), пароли по умолчанию per-контроллер (`Ksital: 00000`, `Ccu825: pass`, `OwenPlc: 0000`), скрытие поля ввода пароля из диалога команд. |
 | **v2.0.5** | Октябрь 2026 | Двухстрочная информационная шапка окна команд (предотвращение обрезки текста пароля), добавление плашек статуса в README. |
 | **v2.1.0** | Октябрь 2026 | **Универсальная кроссплатформенная редакция (Avalonia UI Beta)** с поддержкой Windows 7 SP1, 8, 8.1, 10, 11 и Linux. Поддержка сборки 3 дистрибутивов в CI/CD GitHub Actions. Исходная редакция WinUI 3 сохранена без изменений. |
-| **v2.1.1** | Октябрь 2026 | **Исправление ярлыков установщика Avalonia UI:** гарантированная упаковка `Assets\app.ico` в выходные каталоги сборки и дистрибутивы Inno Setup, устранение проблемы с белыми значками ярлыков в Windows 7–11. Добавление иконки приложения в окна тревог (AlarmWindow) и диалогов управления. |
+| **v2.1.1** | Октябрь 2026 | **Исправление ярлыков и добавление 32-битной редакции (x86):** гарантированная упаковка `Assets\app.ico` в выходные каталоги сборки и дистрибутивы Inno Setup (устранение проблемы со значками ярлыков в Windows 7–11). Добавление иконки приложения в окна тревог (AlarmWindow) и диалогов управления. **Добавлен отдельный 32-битный дистрибутив** `telemetry-hub-win7-x86-setup-vX.X.X.exe` для компьютеров диспетчера с **Windows 7 SP1 x86 (32-бит)**. |
 
 ---
 
@@ -158,22 +159,23 @@ tests/
 
 1. **Локальная сборка установщиков:**
    - Скрипт: `build_release.ps1 -Version "X.X.X"`
-   - Собирает WinUI 3 (win-x64), Avalonia UI (win-x64), Linux (linux-x64) и компилирует Inno Setup скрипты:
-     - `installer.iss` -> `dist/telemetry-hub-setup-vX.X.X.exe`
-     - `installer-avalonia.iss` -> `dist/telemetry-hub-win7-11-setup-vX.X.X.exe`
+   - Собирает WinUI 3 (win-x64), Avalonia UI (win-x64), Avalonia UI (win-x86 32-бит), Linux (linux-x64) и компилирует Inno Setup скрипты:
+     - `installer.iss` -> `dist/telemetry-hub-setup-vX.X.X.exe` (WinUI 3 x64)
+     - `installer-avalonia.iss` -> `dist/telemetry-hub-win7-11-setup-vX.X.X.exe` (Avalonia x64)
+     - `installer-avalonia-x86.iss` -> `dist/telemetry-hub-win7-x86-setup-vX.X.X.exe` (Avalonia x86 32-бит)
      - tar.gz -> `dist/telemetry-hub-linux-x64-vX.X.X.tar.gz`
 
 2. **Автоматическая публикация на GitHub:**
    - Настроен рабочий процесс `.github/workflows/release.yml`.
    - Триггер: отправка тега вида `v*.*.*` в репозиторий (`git push origin vX.X.X`).
-   - GitHub Actions автоматически компилирует все версии, формирует релиз и прикрепляет к нему 3 готовых дистрибутива.
+   - GitHub Actions автоматически компилирует все 4 версии, формирует релиз и прикрепляет к нему 4 готовых дистрибутива.
 
 ---
 
 ## 7. План дальнейших работ (Roadmap для нового чата)
 
-1. **Боевое тестирование на рабочей станции Windows 7 SP1:**
-   - Установка `telemetry-hub-win7-11-setup-v2.1.1.exe` на ПК диспетчера.
+1. **Боевое тестирование на рабочей станции Windows 7 SP1 (32-бит):**
+   - Установка `telemetry-hub-win7-x86-setup-v2.1.1.exe` на ПК диспетчера (Windows 7 x86).
    - Проверка запуска Avalonia UI, авторегистрации службы `KsitalTelemetryWorker`.
    - Проверка связи с физическим GSM-модемом по реальному COM-порту.
    - Проверка импорта рабочей базы из файла экспорта GSMGuard (`.txt`).
