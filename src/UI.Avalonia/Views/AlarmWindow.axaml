@@ -5,6 +5,7 @@
         mc:Ignorable="d" d:DesignWidth="540" d:DesignHeight="520"
         x:Class="KsitalTelemetryHub.UI.Avalonia.Views.AlarmWindow"
         Title="ВНИМАНИЕ: ТРЕВОГА! — Telemetry Hub"
+        Icon="/Assets/app.ico"
         Width="520" Height="500"
         WindowStartupLocation="CenterScreen"
         Topmost="True"

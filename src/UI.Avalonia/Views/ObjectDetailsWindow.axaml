@@ -5,6 +5,7 @@
         mc:Ignorable="d" d:DesignWidth="480" d:DesignHeight="550"
         x:Class="KsitalTelemetryHub.UI.Avalonia.Views.ObjectDetailsWindow"
         Title="Параметры объекта"
+        Icon="/Assets/app.ico"
         Width="460" Height="520"
         WindowStartupLocation="CenterOwner"
         CanResize="false">

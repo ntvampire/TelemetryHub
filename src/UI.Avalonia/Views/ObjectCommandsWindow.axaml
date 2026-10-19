@@ -5,6 +5,7 @@
         mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="600"
         x:Class="KsitalTelemetryHub.UI.Avalonia.Views.ObjectCommandsWindow"
         Title="Команды управления"
+        Icon="/Assets/app.ico"
         Width="580" Height="620"
         WindowStartupLocation="CenterOwner"
         CanResize="false">

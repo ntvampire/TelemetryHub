@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "2.1.0"
+    [string]$Version = "2.1.1"
 )
 
 $ErrorActionPreference = "Stop"
@@ -39,6 +39,9 @@ $workerDirWinUI = Join-Path $distWinUI "WorkerService"
 dotnet publish $workerProj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o $workerDirWinUI
 Copy-Item (Join-Path $PSScriptRoot "src\Service.Worker\register_service.bat") $workerDirWinUI -Force
 Copy-Item (Join-Path $PSScriptRoot "src\Service.Worker\unregister_service.bat") $workerDirWinUI -Force
+$assetsDirWinUI = Join-Path $distWinUI "Assets"
+if (-not (Test-Path $assetsDirWinUI)) { New-Item -ItemType Directory -Path $assetsDirWinUI -Force | Out-Null }
+Copy-Item (Join-Path $PSScriptRoot "src\UI.WinUI\Assets\app.ico") $assetsDirWinUI -Force
 Get-ChildItem -Path $distWinUI -Include "telemetry.db*","*.pdb" -Recurse | Remove-Item -Force
 
 # ==============================================================================
@@ -52,6 +55,9 @@ $workerDirAvalonia = Join-Path $distAvalonia "WorkerService"
 dotnet publish $workerProj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o $workerDirAvalonia
 Copy-Item (Join-Path $PSScriptRoot "src\Service.Worker\register_service.bat") $workerDirAvalonia -Force
 Copy-Item (Join-Path $PSScriptRoot "src\Service.Worker\unregister_service.bat") $workerDirAvalonia -Force
+$assetsDirAvalonia = Join-Path $distAvalonia "Assets"
+if (-not (Test-Path $assetsDirAvalonia)) { New-Item -ItemType Directory -Path $assetsDirAvalonia -Force | Out-Null }
+Copy-Item (Join-Path $PSScriptRoot "src\UI.Avalonia\Assets\app.ico") $assetsDirAvalonia -Force
 Get-ChildItem -Path $distAvalonia -Include "telemetry.db*","*.pdb" -Recurse | Remove-Item -Force
 
 # ==============================================================================
