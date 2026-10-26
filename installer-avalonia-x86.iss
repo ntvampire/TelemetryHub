@@ -1,6 +1,6 @@
 #define MyAppName "Telemetry Hub"
 #ifndef MyAppVersion
-  #define MyAppVersion "2.1.1"
+  #define MyAppVersion "2.1.2"
 #endif
 #define MyAppPublisher "NTVampire"
 #define MyAppExeName "KsitalTelemetryHub.UI.Avalonia.exe"
@@ -38,6 +38,7 @@ Name: "{app}\Assets"; Permissions: users-modify
 ; Копируем файлы 32-битного универсального дистрибутива (Avalonia x86 + Service.Worker x86)
 Source: "dist\telemetry-hub-avalonia-x86\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "telemetry.db*,*.pdb"
 Source: "src\UI.Avalonia\Assets\app.ico"; DestDir: "{app}\Assets"; Flags: ignoreversion
+Source: "redist\vc_redist.x86.exe"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\Assets\app.ico"; Tasks: startmenuicon
@@ -45,6 +46,9 @@ Name: "{autoprograms}\{#MyAppName}\Удалить {#MyAppName}"; Filename: "{uni
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\Assets\app.ico"; Tasks: desktopicon
 
 [Run]
+; Установка Visual C++ 2015-2022 x86 Redistributable, если он не установлен в системе
+Filename: "{tmp}\vc_redist.x86.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "Установка компонентов Microsoft Visual C++ 2015-2022 Redistributable (x86)..."; Check: VCRedistNeedsInstall; Flags: waituntilterminated
+
 ; Регистрация и гарантированный запуск системной службы Windows Service после установки
 Filename: "{sys}\cmd.exe"; Parameters: "/c """"{app}\WorkerService\register_service.bat"""""; Flags: runhidden
 
@@ -54,3 +58,31 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 [UninstallRun]
 ; Остановка и удаление службы при удалении программы
 Filename: "{sys}\cmd.exe"; Parameters: "/c """"{app}\WorkerService\unregister_service.bat"""""; Flags: runhidden
+
+[Code]
+function VCRedistInstalled: Boolean;
+var
+  Installed: Cardinal;
+begin
+  Result := False;
+  // Проверяем ключ Visual C++ 2015-2022 x86 Redistributable
+  if RegQueryDWordValue(HKEY_LOCAL_MACHINE, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\X86', 'Installed', Installed) then
+  begin
+    if Installed = 1 then
+      Result := True;
+  end;
+  if not Result then
+  begin
+    // Запасной ключ проверки (DevDiv Servicing)
+    if RegQueryDWordValue(HKEY_LOCAL_MACHINE, 'SOFTWARE\Microsoft\DevDiv\VC\Servicing\14.0\RuntimeMinimum', 'Install', Installed) then
+    begin
+      if Installed = 1 then
+        Result := True;
+    end;
+  end;
+end;
+
+function VCRedistNeedsInstall: Boolean;
+begin
+  Result := not VCRedistInstalled;
+end;

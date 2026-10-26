@@ -1,4 +1,13 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using KsitalTelemetryHub.Core;
 using KsitalTelemetryHub.Modem.Engine;
 using KsitalTelemetryHub.Parser.Ksital;
@@ -24,7 +33,7 @@ public class Worker : BackgroundService
         _configuration = configuration;
 
         _currentPortName = _configuration.GetValue<string>("ModemSettings:PortName") ?? "COM3";
-        _baudRate = _configuration.GetValue<int>("ModemSettings:BaudRate", 115200);
+        _baudRate = _configuration.GetValue<int>("ModemSettings:BaudRate", 9600);
         _pollIntervalSec = _configuration.GetValue<int>("ModemSettings:PollIntervalSeconds", 10);
 
         string configuredDb = _configuration.GetValue<string>("DatabaseSettings:DbPath") ?? "telemetry.db";
@@ -64,7 +73,7 @@ public class Worker : BackgroundService
         _logger.LogInformation("Инициализация базы данных SQLite ({DbPath})...", _dbPath);
         AppDbContext.EnsureDatabaseUpdated(_dbPath);
 
-        _logger.LogInformation("Запуск сервиса мониторинга телеметрии. Порт: {Port}, Скорость: {Baud}", _currentPortName, _baudRate);
+        _logger.LogInformation("Запуск сервиса мониторинга телеметрии. Порт: {Port}, Базовая скорость: {Baud}", _currentPortName, _baudRate);
 
         GsmModemClient? modem = null;
         string? cachedOperatorName = null;
@@ -99,7 +108,7 @@ public class Worker : BackgroundService
                     modem?.Dispose();
                     modem = new GsmModemClient(_currentPortName, _baudRate);
                     modem.Connect();
-                    _logger.LogInformation("Модем успешно подключен.");
+                    _logger.LogInformation("Модем успешно подключен. Порт: {Port}, Скорость: {Baud} бод.", _currentPortName, modem.CurrentBaudRate);
 
                     // Однократный опрос оператора SIM-карты при подключении/восстановлении связи
                     cachedOperatorName = modem.GetOperatorName();
@@ -218,8 +227,10 @@ public class Worker : BackgroundService
                 await db.UpdateWorkerHeartbeatAsync(
                     portName: _currentPortName,
                     isModemConnected: true,
+                    baudRate: modem?.CurrentBaudRate ?? _baudRate,
                     signalCsq: lastSignalCsq,
                     operatorName: cachedOperatorName,
+                    lastError: null,
                     newSmsProcessed: messages.Count,
                     cancellationToken: stoppingToken);
             }
@@ -235,6 +246,7 @@ public class Worker : BackgroundService
                     await db.UpdateWorkerHeartbeatAsync(
                         portName: _currentPortName,
                         isModemConnected: false,
+                        baudRate: _baudRate,
                         lastError: ex.Message,
                         cancellationToken: stoppingToken);
                 }

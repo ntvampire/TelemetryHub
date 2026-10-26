@@ -448,4 +448,6 @@ release_patch.bat
 release_minor.bat
 
 dist/
-publish_ui/
+publish_ui/redist/
+
+redist/

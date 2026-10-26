@@ -1,6 +1,9 @@
+using System;
+using System.Collections.Generic;
 using System.IO.Ports;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using KsitalTelemetryHub.Core;
 
 namespace KsitalTelemetryHub.Modem.Engine;
@@ -13,15 +16,60 @@ public class GsmModemClient : IDisposable
     private readonly object _lock = new();
 
     public bool IsConnected => _serialPort != null && _serialPort.IsOpen;
+    public int CurrentBaudRate { get; private set; } = 9600;
+    public string PortName => _portName;
 
-    public GsmModemClient(string portName, int baudRate = 115200)
+    public GsmModemClient(string portName, int baudRate = 9600)
     {
         _portName = portName;
-        _baudRate = baudRate;
+        _baudRate = baudRate > 0 ? baudRate : 9600;
+        CurrentBaudRate = _baudRate;
     }
 
     /// <summary>
-    /// Открывает COM-порт и инициализирует модем в PDU-режиме.
+    /// Проверяет отклик модема на команду AT на текущей скорости с пробуждающими импульсами.
+    /// </summary>
+    private bool ProbeAt(int timeoutMs = 1200)
+    {
+        if (_serialPort == null || !_serialPort.IsOpen) return false;
+
+        try
+        {
+            _serialPort.DiscardInBuffer();
+            _serialPort.DiscardOutBuffer();
+
+            // Пробуждающий двойной импульс AT для синхронизации делителя частоты (Autobauding)
+            _serialPort.Write("AT\r");
+            Thread.Sleep(80);
+            _serialPort.Write("AT\r");
+
+            var sb = new StringBuilder();
+            var startTime = DateTime.UtcNow;
+
+            while ((DateTime.UtcNow - startTime).TotalMilliseconds < timeoutMs)
+            {
+                if (_serialPort.BytesToRead > 0)
+                {
+                    sb.Append(_serialPort.ReadExisting());
+                    string current = sb.ToString();
+                    if (current.Contains("OK"))
+                    {
+                        return true;
+                    }
+                }
+                Thread.Sleep(40);
+            }
+        }
+        catch
+        {
+            return false;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Открывает COM-порт и инициализирует модем в PDU-режиме с автоматическим подбором скорости и контролем линий DTR/RTS.
     /// </summary>
     public void Connect()
     {
@@ -29,25 +77,81 @@ public class GsmModemClient : IDisposable
         {
             if (IsConnected) return;
 
-            _serialPort = new SerialPort(_portName, _baudRate, Parity.None, 8, StopBits.One)
+            // Кандидаты скоростей: 9600 (промышленный стандарт RS-232 / Teleofis RX100),
+            // заданная скорость и другие стандартные скорости.
+            var candidateBaudRates = new List<int>();
+            if (_baudRate > 0) candidateBaudRates.Add(_baudRate);
+            if (!candidateBaudRates.Contains(9600)) candidateBaudRates.Add(9600);
+            if (!candidateBaudRates.Contains(115200)) candidateBaudRates.Add(115200);
+            if (!candidateBaudRates.Contains(19200)) candidateBaudRates.Add(19200);
+            if (!candidateBaudRates.Contains(57600)) candidateBaudRates.Add(57600);
+            if (!candidateBaudRates.Contains(38400)) candidateBaudRates.Add(38400);
+
+            int initialBaud = candidateBaudRates[0];
+
+            _serialPort = new SerialPort(_portName, initialBaud, Parity.None, 8, StopBits.One)
             {
-                ReadTimeout = 3000,
-                WriteTimeout = 3000,
-                NewLine = "\r\n",
-                Encoding = Encoding.ASCII
+                ReadTimeout = 2500,
+                WriteTimeout = 2500,
+                NewLine = "\r",
+                Encoding = Encoding.ASCII,
+                DtrEnable = true, // КРИТИЧЕСКИ ВАЖНО: пробуждение приемопередатчика RS-232 и модема
+                RtsEnable = true, // КРИТИЧЕСКИ ВАЖНО: готовность приема для аппаратного контроля потока
+                Handshake = Handshake.None
             };
 
             _serialPort.Open();
 
-            // Проверка связи и сброс эха
-            SendCommand("AT");
-            SendCommand("ATE0"); // Выключаем эхо команд для упрощения парсинга ответов
+            // Гарантируем активные уровни DTR и RTS (+12В) после открытия порта
+            _serialPort.DtrEnable = true;
+            _serialPort.RtsEnable = true;
+            Thread.Sleep(150); // Пауза для пробуждения процессора модема
+
+            bool atResponded = false;
+            int successfulBaud = initialBaud;
+
+            foreach (var baud in candidateBaudRates)
+            {
+                try
+                {
+                    _serialPort.BaudRate = baud;
+                    _serialPort.DtrEnable = true;
+                    _serialPort.RtsEnable = true;
+                    Thread.Sleep(50);
+
+                    if (ProbeAt(timeoutMs: 1200))
+                    {
+                        atResponded = true;
+                        successfulBaud = baud;
+                        break;
+                    }
+                }
+                catch
+                {
+                    // Игнорируем ошибку при смене скорости
+                }
+            }
+
+            if (!atResponded)
+            {
+                _serialPort.Close();
+                _serialPort.Dispose();
+                _serialPort = null;
+                throw new InvalidOperationException(
+                    $"Модем на порту {_portName} не ответил на команду AT ни на одной из скоростей " +
+                    $"({string.Join(", ", candidateBaudRates)}). Проверьте кабель RS-232, питание 12В и SIM-карту.");
+            }
+
+            CurrentBaudRate = successfulBaud;
+
+            // Выключаем эхо команд для упрощения парсинга ответов
+            SendCommand("ATE0");
 
             // Включаем режим PDU (0 - PDU, 1 - Text)
             string pduResponse = SendCommand("AT+CMGF=0");
             if (!pduResponse.Contains("OK"))
             {
-                throw new InvalidOperationException($"Модем отказался перейти в PDU-режим: {pduResponse}");
+                throw new InvalidOperationException($"Модем ответил на AT, но отказался перейти в PDU-режим (AT+CMGF=0): {pduResponse.Trim()}");
             }
         }
     }
@@ -111,7 +215,7 @@ public class GsmModemClient : IDisposable
             throw new InvalidOperationException("COM-порт закрыт.");
 
         _serialPort.DiscardInBuffer();
-        _serialPort.WriteLine(command);
+        _serialPort.Write(command + "\r");
 
         var sb = new StringBuilder();
         var startTime = DateTime.UtcNow;
@@ -124,12 +228,13 @@ public class GsmModemClient : IDisposable
                 sb.Append(chunk);
 
                 string current = sb.ToString();
-                if (current.Contains("OK\r\n") || current.Contains("ERROR\r\n"))
+                if (current.Contains("OK\r") || current.Contains("OK\n") ||
+                    current.Contains("ERROR\r") || current.Contains("ERROR\n"))
                 {
                     break;
                 }
             }
-            Thread.Sleep(50);
+            Thread.Sleep(30);
         }
 
         return sb.ToString();
@@ -164,6 +269,7 @@ public class GsmModemClient : IDisposable
         Disconnect();
         GC.SuppressFinalize(this);
     }
+
     public bool SendSms(string phoneNumber, string messageText)
     {
         if (_serialPort == null || !_serialPort.IsOpen)

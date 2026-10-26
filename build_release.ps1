@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "2.1.1"
+    [string]$Version = "2.1.2"
 )
 
 $ErrorActionPreference = "Stop"
@@ -34,7 +34,7 @@ $workerProj = Join-Path $PSScriptRoot "src\Service.Worker\Service.Worker.csproj"
 # ==============================================================================
 # 1. ПУБЛИКАЦИЯ ВЕРСИИ WINUI 3 (WINDOWS 10 / 11)
 # ==============================================================================
-Write-Host "1/6. Publish UI.WinUI (win-x64)..." -ForegroundColor Yellow
+Write-Host "1/7. Publish UI.WinUI (win-x64)..." -ForegroundColor Yellow
 $winuiProj = Join-Path $PSScriptRoot "src\UI.WinUI\UI.WinUI.csproj"
 dotnet publish $winuiProj -c Release -r win-x64 -p:Platform=x64 --self-contained true -p:PublishSingleFile=false -o $distWinUI
 
@@ -50,7 +50,7 @@ Get-ChildItem -Path $distWinUI -Include "telemetry.db*","*.pdb" -Recurse | Remov
 # ==============================================================================
 # 2. ПУБЛИКАЦИЯ УНИВЕРСАЛЬНОЙ ВЕРСИИ AVALONIA (WINDOWS 7 / 8 / 10 / 11)
 # ==============================================================================
-Write-Host "2/6. Publish UI.Avalonia (win-x64)..." -ForegroundColor Yellow
+Write-Host "2/7. Publish UI.Avalonia (win-x64)..." -ForegroundColor Yellow
 $avaloniaProj = Join-Path $PSScriptRoot "src\UI.Avalonia\UI.Avalonia.csproj"
 dotnet publish $avaloniaProj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o $distAvalonia
 
@@ -109,9 +109,46 @@ if (Test-Path $linuxArchive) {
 }
 
 # ==============================================================================
-# 6. СБОРКА УСТАНОВЩИКОВ INNO SETUP
+# 6. ПОДГОТОВКА REDISTRIBUTABLE (VC++ 2015-2022 X86)
 # ==============================================================================
-Write-Host "6/7. Searching Inno Setup compiler..." -ForegroundColor Yellow
+Write-Host "6/7. Ensuring Microsoft Visual C++ 2015-2022 Redistributable (x86)..." -ForegroundColor Yellow
+$redistDir = Join-Path $PSScriptRoot "redist"
+$redistFile = Join-Path $redistDir "vc_redist.x86.exe"
+if (-not (Test-Path $redistDir)) {
+    New-Item -ItemType Directory -Path $redistDir -Force | Out-Null
+}
+
+$sharedRedist = "D:\Projects\Redist\vc_redist.x86.exe"
+if (-not (Test-Path $redistFile)) {
+    if (Test-Path $sharedRedist) {
+        Write-Host "Copying vc_redist.x86.exe from $sharedRedist..." -ForegroundColor Green
+        Copy-Item $sharedRedist $redistFile -Force
+    } else {
+        Write-Host "Downloading vc_redist.x86.exe from Microsoft CDN..." -ForegroundColor Yellow
+        $vcUrl = "https://aka.ms/vs/17/release/vc_redist.x86.exe"
+        try {
+            curl.exe -sSL $vcUrl -o $redistFile
+        } catch {
+            Invoke-WebRequest -Uri $vcUrl -OutFile $redistFile
+        }
+        if (Test-Path "D:\Projects") {
+            if (-not (Test-Path "D:\Projects\Redist")) {
+                New-Item -ItemType Directory -Path "D:\Projects\Redist" -Force | Out-Null
+            }
+            Copy-Item $redistFile $sharedRedist -Force
+        }
+    }
+}
+if (Test-Path $redistFile) {
+    Write-Host "SUCCESS: vc_redist.x86.exe ready ($((Get-Item $redistFile).Length) bytes)" -ForegroundColor Green
+} else {
+    Write-Warning "vc_redist.x86.exe is missing. x86 installer may fail to bundle it."
+}
+
+# ==============================================================================
+# 7. СБОРКА УСТАНОВЩИКОВ INNO SETUP
+# ==============================================================================
+Write-Host "7/7. Searching Inno Setup compiler..." -ForegroundColor Yellow
 $isccCandidates = @(
     "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
     "C:\Program Files\Inno Setup 6\ISCC.exe",
@@ -124,7 +161,7 @@ if (-not $isccCandidates) {
 } else {
     $iscc = $isccCandidates[0]
     
-    # 6.1. Установщик WinUI 3 (Win 10/11 x64)
+    # 7.1. Установщик WinUI 3 (Win 10/11 x64)
     Write-Host "Compiling WinUI 3 Setup (Win 10/11 x64)..." -ForegroundColor Yellow
     $issWinUI = Join-Path $PSScriptRoot "installer.iss"
     & $iscc "/DMyAppVersion=$Version" $issWinUI
@@ -133,7 +170,7 @@ if (-not $isccCandidates) {
         Write-Host "SUCCESS: WinUI 3 Installer ready -> $setupWinUI" -ForegroundColor Green
     }
 
-    # 6.2. Универсальный 64-битный установщик Avalonia (Win 7-11 x64)
+    # 7.2. Универсальный 64-битный установщик Avalonia (Win 7-11 x64)
     Write-Host "Compiling Universal Avalonia Setup (Win 7-11 x64)..." -ForegroundColor Yellow
     $issAvalonia = Join-Path $PSScriptRoot "installer-avalonia.iss"
     & $iscc "/DMyAppVersion=$Version" $issAvalonia
@@ -142,7 +179,7 @@ if (-not $isccCandidates) {
         Write-Host "SUCCESS: Universal Windows Setup (x64) ready -> $setupAvalonia" -ForegroundColor Green
     }
 
-    # 6.3. Универсальный 32-битный установщик Avalonia (Win 7-11 x86)
+    # 7.3. Универсальный 32-битный установщик Avalonia (Win 7-11 x86)
     Write-Host "Compiling 32-bit Avalonia Setup (Win 7-11 x86)..." -ForegroundColor Yellow
     $issAvaloniaX86 = Join-Path $PSScriptRoot "installer-avalonia-x86.iss"
     & $iscc "/DMyAppVersion=$Version" $issAvaloniaX86

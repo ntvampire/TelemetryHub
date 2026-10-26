@@ -58,7 +58,7 @@ public static class UpdateService
     public static string GetCurrentVersionString()
     {
         var ver = Assembly.GetExecutingAssembly().GetName().Version;
-        return ver != null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "2.1.1";
+        return ver != null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "2.1.2";
     }
 
     public static async Task<(bool HasUpdate, string CurrentVersion, string RemoteVersion, string? ReleaseNotes, string? DownloadUrl)> CheckForUpdatesAsync()
@@ -87,8 +87,8 @@ public static class UpdateService
                 if (remoteVer > localVer)
                 {
                     // Поиск инсталлятора среди ассетов релиза
-                    var installerAsset = release.Assets.Find(a => !a.Name.Contains("win7-11", StringComparison.OrdinalIgnoreCase) && a.Name.Contains("setup", StringComparison.OrdinalIgnoreCase) && a.Name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
-                                        ?? release.Assets.Find(a => a.Name.Contains("setup", StringComparison.OrdinalIgnoreCase) && a.Name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                    var installerAsset = release.Assets.Find(a => !a.Name.Contains("win7", StringComparison.OrdinalIgnoreCase) && !a.Name.Contains("x86", StringComparison.OrdinalIgnoreCase) && a.Name.Contains("setup", StringComparison.OrdinalIgnoreCase) && a.Name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                                        ?? release.Assets.Find(a => a.Name.Contains("setup", StringComparison.OrdinalIgnoreCase) && !a.Name.Contains("x86", StringComparison.OrdinalIgnoreCase) && a.Name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
                                         ?? release.Assets.Find(a => a.Name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
 
                     return (true, currentVerStr, release.TagName, release.Body, installerAsset?.BrowserDownloadUrl);

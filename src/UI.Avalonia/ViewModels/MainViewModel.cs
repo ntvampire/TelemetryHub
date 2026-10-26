@@ -152,7 +152,7 @@ public partial class MainViewModel : ObservableObject
                 ComPortStatus = $"COM: {status.PortName}";
 
                 IsModemConnected = status.IsModemConnected;
-                ModemStatusText = status.IsModemConnected ? $"Модем: {status.PortName}" : "Модем: Ошибка";
+                ModemStatusText = status.IsModemConnected ? $"Модем: {status.PortName} ({status.BaudRate})" : "Модем: Ошибка";
                 ModemStatus = ModemStatusText;
 
                 ModemOperatorText = !string.IsNullOrWhiteSpace(status.OperatorName)

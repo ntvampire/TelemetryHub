@@ -1,6 +1,6 @@
 #define MyAppName "Telemetry Hub"
 #ifndef MyAppVersion
-  #define MyAppVersion "2.1.1"
+  #define MyAppVersion "2.1.2"
 #endif
 #define MyAppPublisher "NTVampire"
 #define MyAppExeName "KsitalTelemetryHub.UI.WinUI.exe"
@@ -21,7 +21,7 @@ WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64
 PrivilegesRequired=admin
 SetupIconFile=src\UI.WinUI\Assets\app.ico
-UninstallDisplayIcon={app}\{#MyAppExeName}
+UninstallDisplayIcon={app}\Assets\app.ico
 
 [Languages]
 Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"

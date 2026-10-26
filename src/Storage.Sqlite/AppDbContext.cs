@@ -1,4 +1,9 @@
+using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using KsitalTelemetryHub.Core;
@@ -221,6 +226,7 @@ public class AppDbContext : DbContext
     public async Task UpdateWorkerHeartbeatAsync(
         string portName, 
         bool isModemConnected, 
+        int baudRate = 9600,
         int signalCsq = 0, 
         string? operatorName = null, 
         string? lastError = null, 
@@ -234,6 +240,7 @@ public class AppDbContext : DbContext
             {
                 Id = 1,
                 PortName = portName,
+                BaudRate = baudRate,
                 IsModemConnected = isModemConnected,
                 SignalStrengthCsq = signalCsq,
                 OperatorName = operatorName,
@@ -246,6 +253,7 @@ public class AppDbContext : DbContext
         else
         {
             status.PortName = portName;
+            if (baudRate > 0) status.BaudRate = baudRate;
             status.IsWorkerAlive = true;
             status.IsModemConnected = isModemConnected;
             if (signalCsq >= 0) status.SignalStrengthCsq = signalCsq;
@@ -333,6 +341,7 @@ public class AppDbContext : DbContext
                 CREATE TABLE IF NOT EXISTS SystemStatus (
                     Id INTEGER PRIMARY KEY,
                     PortName TEXT NOT NULL,
+                    BaudRate INTEGER NOT NULL DEFAULT 9600,
                     IsWorkerAlive INTEGER NOT NULL DEFAULT 1,
                     IsModemConnected INTEGER NOT NULL DEFAULT 0,
                     SignalStrengthCsq INTEGER NOT NULL DEFAULT 0,
@@ -340,12 +349,13 @@ public class AppDbContext : DbContext
                     LastHeartbeat TEXT NOT NULL,
                     LastError TEXT NULL,
                     TotalSmsProcessed INTEGER NOT NULL DEFAULT 0,
-                    RequestedPortName TEXT NULL
+                    RequestedPortName TEXT NULL,
+                    RequestSignalCheck INTEGER NOT NULL DEFAULT 0
                 );";
             ddlCmd.ExecuteNonQuery();
         }
 
-        // 4. Проверка схемы таблицы SystemStatus на наличие RequestedPortName
+        // 4. Проверка схемы таблицы SystemStatus на наличие колонок
         var statusColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         using (var statusColCmd = conn.CreateCommand())
         {
@@ -368,6 +378,13 @@ public class AppDbContext : DbContext
         {
             using var cmd = conn.CreateCommand();
             cmd.CommandText = "ALTER TABLE SystemStatus ADD COLUMN RequestSignalCheck INTEGER NOT NULL DEFAULT 0;";
+            cmd.ExecuteNonQuery();
+        }
+
+        if (!statusColumns.Contains("BaudRate"))
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "ALTER TABLE SystemStatus ADD COLUMN BaudRate INTEGER NOT NULL DEFAULT 9600;";
             cmd.ExecuteNonQuery();
         }
 

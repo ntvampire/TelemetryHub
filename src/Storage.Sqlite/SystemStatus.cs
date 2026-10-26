@@ -11,6 +11,7 @@ public class SystemStatus
 {
     public int Id { get; set; } = 1;
     public string PortName { get; set; } = "COM3";
+    public int BaudRate { get; set; } = 9600;
     public bool IsWorkerAlive { get; set; } = true;
     public bool IsModemConnected { get; set; }
     public int SignalStrengthCsq { get; set; } // 0..31
