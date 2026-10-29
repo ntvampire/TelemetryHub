@@ -47,7 +47,7 @@ public class Worker : BackgroundService
             // проверяем родительскую папку на наличие telemetry.db или исполняемого файла UI
             string parentDb = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", configuredDb));
             string localDb = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, configuredDb));
-            string parentExe = Path.Combine(AppContext.BaseDirectory, "..", "KsitalTelemetryHub.UI.WinUI.exe");
+            string parentExe = Path.Combine(AppContext.BaseDirectory, "..", "KsitalTelemetryHub.UI.Avalonia.exe");
 
             if (File.Exists(parentExe) || File.Exists(parentDb))
             {

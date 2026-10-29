@@ -1,4 +1,4 @@
-param(
+﻿param(
     [ValidateSet("patch", "minor", "major")]
     [string]$Type = "patch",
     [string]$Notes = ""
@@ -47,14 +47,22 @@ if ([string]::IsNullOrWhiteSpace($Notes)) {
     $Notes = "Плановое обновление системы ($Type) $nextTag"
 }
 
-# Обновляем версию в UI.WinUI.csproj
-$projPath = "src\UI.WinUI\UI.WinUI.csproj"
+# Обновляем версию в UI.Avalonia.csproj
+$projPath = "src\UI.Avalonia\UI.Avalonia.csproj"
 $projXml = [xml](Get-Content $projPath -Raw)
 $verNode = $projXml.SelectSingleNode("//Version")
 if ($verNode) {
     $verNode.InnerText = $nextVer
-    $projXml.Save((Resolve-Path $projPath))
 }
+$fileVerNode = $projXml.SelectSingleNode("//FileVersion")
+if ($fileVerNode) {
+    $fileVerNode.InnerText = "$nextVer.0"
+}
+$asmVerNode = $projXml.SelectSingleNode("//AssemblyVersion")
+if ($asmVerNode) {
+    $asmVerNode.InnerText = "$nextVer.0"
+}
+$projXml.Save((Resolve-Path $projPath))
 
 Write-Host "`n1. Фиксация изменений в ветке main..." -ForegroundColor Yellow
 git add $projPath

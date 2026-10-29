@@ -11,9 +11,9 @@
     <RootNamespace>KsitalTelemetryHub.UI.Avalonia</RootNamespace>
     <Product>Telemetry Hub</Product>
     <Company>NTVampire</Company>
-    <Version>2.1.2</Version>
-    <FileVersion>2.1.2.0</FileVersion>
-    <AssemblyVersion>2.1.2.0</AssemblyVersion>
+    <Version>2.2.0</Version>
+    <FileVersion>2.2.0.0</FileVersion>
+    <AssemblyVersion>2.2.0.0</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>

@@ -1,13 +1,13 @@
 #define MyAppName "Telemetry Hub"
 #ifndef MyAppVersion
-  #define MyAppVersion "2.1.2"
+  #define MyAppVersion "2.2.0"
 #endif
 #define MyAppPublisher "NTVampire"
 #define MyAppExeName "KsitalTelemetryHub.UI.Avalonia.exe"
 
 [Setup]
 AppId={{C72D4E9F-1A5B-4C3D-8E2F-6A0B1C2D3E4F}}
-AppName={#MyAppName} (Universal 32-bit)
+AppName={#MyAppName} (32-bit)
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\{#MyAppName}

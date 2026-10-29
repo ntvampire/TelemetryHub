@@ -1,12 +1,12 @@
 #define MyAppName "Telemetry Hub"
 #ifndef MyAppVersion
-  #define MyAppVersion "2.1.2"
+  #define MyAppVersion "2.2.0"
 #endif
 #define MyAppPublisher "NTVampire"
-#define MyAppExeName "KsitalTelemetryHub.UI.WinUI.exe"
+#define MyAppExeName "KsitalTelemetryHub.UI.Avalonia.exe"
 
 [Setup]
-AppId={{D38F2B7E-7F2A-4B2E-8F12-892D98D1C765}
+AppId={{E59B3C8A-8A1D-4E2F-9B3C-1F2A3B4C5D6E}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
@@ -14,13 +14,13 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=dist
-OutputBaseFilename=telemetry-hub-setup-v{#MyAppVersion}
+OutputBaseFilename=telemetry-hub-win7-11-x64-setup-v{#MyAppVersion}
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64
 PrivilegesRequired=admin
-SetupIconFile=src\UI.WinUI\Assets\app.ico
+SetupIconFile=src\UI.Avalonia\Assets\app.ico
 UninstallDisplayIcon={app}\Assets\app.ico
 
 [Languages]
@@ -32,13 +32,13 @@ Name: "startmenuicon"; Description: "Создать ярлыки в меню П�
 
 [Dirs]
 ; Предоставляем права на запись и изменение в папку приложения встроенной группе "Пользователи"
-; Это гарантирует, что оператор сможет запускать программу и писать в рабочую БД telemetry.db без прав администратора (без UAC)
 Name: "{app}"; Permissions: users-modify
+Name: "{app}\Assets"; Permissions: users-modify
 
 [Files]
-; Копируем все файлы скомпилированного UI и скриптов (исключая рабочие базы)
-Source: "dist\telemetry-hub\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "telemetry.db*,*.pdb"
-Source: "src\UI.WinUI\Assets\app.ico"; DestDir: "{app}\Assets"; Flags: ignoreversion
+; Копируем файлы 64-битного дистрибутива (Avalonia x64 + Service.Worker x64)
+Source: "dist\telemetry-hub-avalonia-x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "telemetry.db*,*.pdb"
+Source: "src\UI.Avalonia\Assets\app.ico"; DestDir: "{app}\Assets"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\Assets\app.ico"; Tasks: startmenuicon

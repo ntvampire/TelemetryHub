@@ -1,2 +1,2 @@
 @echo off
-start "" "%~dp0KsitalTelemetryHub.UI.WinUI.exe"
+start "" "%~dp0KsitalTelemetryHub.UI.Avalonia.exe"
