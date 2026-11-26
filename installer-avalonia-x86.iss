@@ -1,6 +1,6 @@
 #define MyAppName "Telemetry Hub"
 #ifndef MyAppVersion
-  #define MyAppVersion "2.2.0"
+  #define MyAppVersion "2.3.0"
 #endif
 #define MyAppPublisher "NTVampire"
 #define MyAppExeName "KsitalTelemetryHub.UI.Avalonia.exe"
@@ -30,9 +30,11 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "startmenuicon"; Description: "Создать ярлыки в меню Пуск"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Dirs]
-; Предоставляем права на запись и изменение в папку приложения встроенной группе "Пользователи"
-Name: "{app}"; Permissions: users-modify
-Name: "{app}\Assets"; Permissions: users-modify
+; Папка с бинарниками остается только для чтения обычным пользователям (защита службы от подмены).
+; Рабочая БД, логи и бэкапы размещаются в ProgramData\TelemetryHub.
+Name: "{commonappdata}\TelemetryHub"; Permissions: users-modify
+Name: "{commonappdata}\TelemetryHub\backups"; Permissions: users-modify
+Name: "{commonappdata}\TelemetryHub\logs"; Permissions: users-modify
 
 [Files]
 ; Копируем файлы 32-битного универсального дистрибутива (Avalonia x86 + Service.Worker x86)

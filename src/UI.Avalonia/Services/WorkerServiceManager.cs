@@ -113,6 +113,54 @@ public static class WorkerServiceManager
         return false;
     }
 
+    public static async Task<bool> StopWindowsServiceAsync()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return true;
+        if (!IsWindowsServiceRunning()) return true;
+
+        try
+        {
+            using var proc = Process.Start(new ProcessStartInfo
+            {
+                FileName = "sc.exe",
+                Arguments = $"stop {ServiceName}",
+                CreateNoWindow = true,
+                UseShellExecute = false
+            });
+            if (proc != null)
+            {
+                await proc.WaitForExitAsync();
+            }
+
+            for (int i = 0; i < 10; i++)
+            {
+                await Task.Delay(300);
+                if (!IsWindowsServiceRunning()) return true;
+            }
+
+            // Если не хватило прав обычного пользователя — пробуем через UAC
+            var elevated = Process.Start(new ProcessStartInfo
+            {
+                FileName = "sc.exe",
+                Arguments = $"stop {ServiceName}",
+                Verb = "runas",
+                UseShellExecute = true,
+                WindowStyle = ProcessWindowStyle.Hidden
+            });
+            if (elevated != null)
+            {
+                await elevated.WaitForExitAsync();
+                for (int i = 0; i < 10; i++)
+                {
+                    await Task.Delay(300);
+                    if (!IsWindowsServiceRunning()) return true;
+                }
+            }
+        }
+        catch { }
+        return !IsWindowsServiceRunning();
+    }
+
     public static async Task EnsureWorkerStartedAsync()
     {
         lock (_lock)

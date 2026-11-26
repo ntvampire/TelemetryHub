@@ -42,7 +42,12 @@ public partial class ObjectDisplayItem : ObservableObject
     };
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LastSeenFormatted))]
     private DateTime? _lastSeen;
+
+    public string LastSeenFormatted => LastSeen.HasValue
+        ? $"Связь: {LastSeen.Value.ToLocalTime():dd.MM HH:mm}"
+        : "Связь: нет данных";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PowerStatusText))]
@@ -51,10 +56,22 @@ public partial class ObjectDisplayItem : ObservableObject
     private PowerState _mainPower = PowerState.Unknown;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BatteryVoltageFormatted))]
     private double? _batteryVoltage;
 
+    public string BatteryVoltageFormatted => BatteryVoltage.HasValue
+        ? $"АКБ: {BatteryVoltage.Value:F1} В"
+        : "АКБ: —";
+
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SimBalanceFormatted))]
+    [NotifyPropertyChangedFor(nameof(HasSimBalance))]
     private double? _simBalance;
+
+    public bool HasSimBalance => SimBalance.HasValue;
+    public string SimBalanceFormatted => SimBalance.HasValue
+        ? $"Баланс: {SimBalance.Value:F2} ₽"
+        : string.Empty;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TemperaturesFormatted))]
@@ -106,6 +123,10 @@ public partial class ObjectDisplayItem : ObservableObject
         OnPropertyChanged(nameof(PhoneNumber));
         OnPropertyChanged(nameof(District));
         OnPropertyChanged(nameof(DeviceTypeName));
+        OnPropertyChanged(nameof(LastSeenFormatted));
+        OnPropertyChanged(nameof(BatteryVoltageFormatted));
+        OnPropertyChanged(nameof(SimBalanceFormatted));
+        OnPropertyChanged(nameof(HasSimBalance));
         OnPropertyChanged(nameof(PowerStatusText));
         OnPropertyChanged(nameof(StatusBadgeBrush));
         OnPropertyChanged(nameof(StatusBadgeColor));

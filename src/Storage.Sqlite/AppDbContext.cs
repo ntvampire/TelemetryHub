@@ -85,7 +85,7 @@ public class AppDbContext : DbContext
         string cleanPhone = PhoneNumber.Normalize(rawPhone);
         if (string.IsNullOrEmpty(cleanPhone))
         {
-            cleanPhone = "+79000000000";
+            throw new ArgumentException("Не удалось определить номер телефона отправителя телеметрии.", nameof(senderPhone));
         }
 
         var obj = await Objects.FirstOrDefaultAsync(o => o.PhoneNumber == cleanPhone, cancellationToken);
@@ -97,7 +97,7 @@ public class AppDbContext : DbContext
                 Name = string.IsNullOrWhiteSpace(report.DeviceName) ? $"Объект {cleanPhone}" : report.DeviceName,
                 District = "Основной участок",
                 DeviceType = DeviceType.Ksital,
-                DevicePassword = "00000"
+                DevicePassword = DevicePasswordProtector.Protect(DeviceCommandBuilder.GetDefaultPassword(DeviceType.Ksital))
             };
             Objects.Add(obj);
             await SaveChangesAsync(cancellationToken);
@@ -112,7 +112,9 @@ public class AppDbContext : DbContext
             MonitoredObjectId = obj.Id,
             Timestamp = report.Timestamp != default ? report.Timestamp : DateTime.UtcNow,
             MainPower = report.MainPower,
-            BatteryVoltage = report.BatteryVoltage
+            BatteryVoltage = report.BatteryVoltage,
+            SimBalance = report.SimBalance,
+            RawSmsText = report.RawText ?? string.Empty
         };
 
         if (report.Temperatures != null)
@@ -142,8 +144,13 @@ public class AppDbContext : DbContext
             });
         }
 
-        // Фиксация технологической аварии из отчета
-        if (report.IsAlarm && !string.IsNullOrWhiteSpace(report.AlarmDescription))
+        // Фиксация технологической аварии из отчета (исключаем дубль, если это чисто потеря 220V)
+        bool isOnlyPowerDesc = report.MainPower == PowerState.Off &&
+                               !string.IsNullOrWhiteSpace(report.AlarmDescription) &&
+                               report.AlarmDescription.Contains("220V", StringComparison.OrdinalIgnoreCase) &&
+                               !report.AlarmDescription.Contains(';');
+
+        if (report.IsAlarm && !string.IsNullOrWhiteSpace(report.AlarmDescription) && !isOnlyPowerDesc)
         {
             Alarms.Add(new AlarmEvent
             {
@@ -196,20 +203,24 @@ public class AppDbContext : DbContext
     {
         try
         {
+            // Никогда не удаляем неподтверждённые тревоги (EventType == "Alarm" && !IsAcknowledged):
+            // квоту maxCount заполняем сначала активными тревогами, остаток — самыми свежими прочими событиями.
+            int activeAlarmsCount = await Alarms
+                .CountAsync(a => !a.IsAcknowledged && a.EventType == "Alarm", cancellationToken);
+            int keepRotatable = Math.Max(0, maxCount - activeAlarmsCount);
+
             var excessIds = await Alarms
+                .Where(a => a.IsAcknowledged || a.EventType != "Alarm")
                 .OrderByDescending(a => a.Timestamp)
-                .Skip(maxCount)
+                .Skip(keepRotatable)
                 .Select(a => a.Id)
                 .ToListAsync(cancellationToken);
 
             if (excessIds.Count > 0)
             {
-                var itemsToDelete = await Alarms
+                await Alarms
                     .Where(a => excessIds.Contains(a.Id))
-                    .ToListAsync(cancellationToken);
-
-                Alarms.RemoveRange(itemsToDelete);
-                await SaveChangesAsync(cancellationToken);
+                    .ExecuteDeleteAsync(cancellationToken);
             }
         }
         catch

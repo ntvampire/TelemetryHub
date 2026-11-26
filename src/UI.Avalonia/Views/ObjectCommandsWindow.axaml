@@ -22,9 +22,10 @@
                         <TextBlock x:Name="TxtPhone" Text="Номер: " Foreground="#9E9E9E" FontSize="12"/>
                         <TextBlock x:Name="TxtDistrict" Text="Участок: " Foreground="#9E9E9E" FontSize="12"/>
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="24">
-                        <TextBlock x:Name="TxtDeviceType" Text="Контроллер: " Foreground="#9E9E9E" FontSize="12"/>
-                        <TextBlock x:Name="TxtPassword" Text="Пароль: " Foreground="#9E9E9E" FontSize="12"/>
+                    <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                        <TextBlock x:Name="TxtDeviceType" Text="Контроллер: " Foreground="#9E9E9E" FontSize="12" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="TxtPassword" Text="Пароль: •••••" Foreground="#9E9E9E" FontSize="12" VerticalAlignment="Center"/>
+                        <Button x:Name="BtnTogglePassword" Content="👁" Click="BtnTogglePassword_Click" Padding="6,2" FontSize="11" ToolTip.Tip="Показать или скрыть пароль"/>
                     </StackPanel>
                 </StackPanel>
             </Border>

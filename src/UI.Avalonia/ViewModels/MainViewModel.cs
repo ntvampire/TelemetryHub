@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -10,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using KsitalTelemetryHub.Core;
 using KsitalTelemetryHub.Storage.Sqlite;
 using KsitalTelemetryHub.UI.Avalonia.Models;
+using KsitalTelemetryHub.UI.Avalonia.Services;
 
 namespace KsitalTelemetryHub.UI.Avalonia.ViewModels;
 
@@ -18,7 +20,9 @@ public partial class MainViewModel : ObservableObject
     private readonly string _dbPath;
     private readonly List<ObjectDisplayItem> _allLoadedObjects = new();
     private readonly HashSet<long> _knownAlarmIds = new();
+    private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private bool _isFirstLoad = true;
+    private bool _isInitializingConfig;
 
     public event Action<AlarmDisplayItem>? NewAlarmArrived;
 
@@ -69,6 +73,9 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private string _modemStatusText = "Модем: Нет связи";
+
+    [ObservableProperty]
+    private string _modemErrorTooltip = "Статус подключения к GSM-модему";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ModemStatusColor))]
@@ -123,12 +130,23 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isSoundAlarmEnabled = true;
 
+    partial void OnIsSoundAlarmEnabledChanged(bool value)
+    {
+        if (_isInitializingConfig) return;
+        var cfg = BackupService.LoadConfig();
+        cfg.IsSoundAlarmEnabled = value;
+        BackupService.SaveConfig(cfg);
+    }
+
     [ObservableProperty]
     private ObjectDisplayItem? _selectedObject;
 
     public MainViewModel()
     {
         _dbPath = App.DatabasePath;
+        _isInitializingConfig = true;
+        _isSoundAlarmEnabled = BackupService.LoadConfig().IsSoundAlarmEnabled;
+        _isInitializingConfig = false;
     }
 
     public async Task InitializeAsync()
@@ -139,6 +157,9 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     public async Task RefreshDataAsync()
     {
+        if (!await _refreshGate.WaitAsync(0))
+            return;
+
         try
         {
             using var db = new AppDbContext(_dbPath);
@@ -152,7 +173,19 @@ public partial class MainViewModel : ObservableObject
                 ComPortStatus = $"COM: {status.PortName}";
 
                 IsModemConnected = status.IsModemConnected;
-                ModemStatusText = status.IsModemConnected ? $"Модем: {status.PortName} ({status.BaudRate})" : "Модем: Ошибка";
+                if (status.IsModemConnected)
+                {
+                    ModemStatusText = $"Модем: {status.PortName} ({status.BaudRate})";
+                    ModemErrorTooltip = $"Подключено: {status.PortName}, {status.BaudRate} бод";
+                }
+                else
+                {
+                    string shortErr = string.IsNullOrWhiteSpace(status.LastError)
+                        ? "Ошибка"
+                        : (status.LastError.Length > 36 ? status.LastError[..36] + "..." : status.LastError);
+                    ModemStatusText = $"Модем: {shortErr}";
+                    ModemErrorTooltip = status.LastError ?? "Нет связи с модемом";
+                }
                 ModemStatus = ModemStatusText;
 
                 ModemOperatorText = !string.IsNullOrWhiteSpace(status.OperatorName)
@@ -170,6 +203,7 @@ public partial class MainViewModel : ObservableObject
 
                 IsModemConnected = false;
                 ModemStatusText = "Модем: Нет связи";
+                ModemErrorTooltip = status?.LastError ?? "Служба сбора данных не отвечает";
                 ModemStatus = "Модем: Нет связи";
 
                 ModemOperatorText = "Сеть: —";
@@ -231,6 +265,7 @@ public partial class MainViewModel : ObservableObject
                     LastSeen = lastRecord?.Timestamp,
                     MainPower = lastRecord?.MainPower ?? PowerState.Unknown,
                     BatteryVoltage = lastRecord?.BatteryVoltage,
+                    SimBalance = lastRecord?.SimBalance != null ? (double?)lastRecord.SimBalance.Value : null,
                     HasActiveAlarm = activeAlarm != null,
                     AlarmDescription = activeAlarm?.Description
                 };
@@ -260,9 +295,11 @@ public partial class MainViewModel : ObservableObject
 
             var eventDisplays = new List<AlarmDisplayItem>();
             var newAlarms = new List<AlarmDisplayItem>();
+            var currentIds = new HashSet<long>();
 
             foreach (var a in journalEvents)
             {
+                currentIds.Add(a.Id);
                 var relatedObj = dbObjects.FirstOrDefault(o => o.Id == a.MonitoredObjectId);
                 string devTypeName = relatedObj?.DeviceType switch
                 {
@@ -297,6 +334,7 @@ public partial class MainViewModel : ObservableObject
                     }
                 }
             }
+            _knownAlarmIds.IntersectWith(currentIds);
             _isFirstLoad = false;
 
             ActiveAlarms = new ObservableCollection<AlarmDisplayItem>(eventDisplays);
@@ -311,7 +349,7 @@ public partial class MainViewModel : ObservableObject
             }
 
             // 5.1. Проверка истечения 5-минутного периода отложения тревог
-            await Services.AlarmManager.CheckSnoozedAlarmsAsync(this, na =>
+            await AlarmManager.CheckSnoozedAlarmsAsync(this, na =>
             {
                 NewAlarmArrived?.Invoke(na);
             });
@@ -346,6 +384,10 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             App.LogError("MainViewModel.RefreshDataAsync", ex);
+        }
+        finally
+        {
+            _refreshGate.Release();
         }
     }
 
@@ -560,11 +602,14 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    public async Task EnqueueCommandAsync(int objectId, string rawPayload, string description)
+    public async Task EnqueueCommandAsync(int objectId, string rawPayload, string description, string? maskedPayload = null)
     {
         using var db = new AppDbContext(_dbPath);
         var obj = await db.Objects.FirstOrDefaultAsync(o => o.Id == objectId);
         if (obj == null) return;
+
+        string plainPass = DevicePasswordProtector.Unprotect(obj.DevicePassword);
+        string safePayloadForLog = maskedPayload ?? DevicePasswordProtector.MaskPasswordInPayload(rawPayload, plainPass);
 
         var cmd = new OutgoingCommand
         {
@@ -582,7 +627,7 @@ public partial class MainViewModel : ObservableObject
         {
             MonitoredObjectId = obj.Id,
             Timestamp = DateTime.UtcNow,
-            Description = $"Запрос оператора: {description} [SMS: {rawPayload}]",
+            Description = $"Запрос оператора: {description} [SMS: {safePayloadForLog}]",
             EventType = "Command",
             IsAcknowledged = true,
             AcknowledgedAt = DateTime.UtcNow

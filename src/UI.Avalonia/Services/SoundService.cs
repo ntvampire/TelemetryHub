@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using KsitalTelemetryHub.Core;
 
 namespace KsitalTelemetryHub.UI.Avalonia.Services;
 
@@ -25,38 +27,25 @@ public static class SoundService
     {
         try
         {
+            string? soundFile = EnsureAlarmWavFile();
+
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                var soundPath = Path.Combine(AppContext.BaseDirectory, "Assets", "alarm.wav");
-                if (File.Exists(soundPath))
+                if (!string.IsNullOrEmpty(soundFile) && File.Exists(soundFile))
                 {
-                    PlaySound(soundPath, IntPtr.Zero, SND_ASYNC | SND_FILENAME | SND_NODEFAULT);
+                    PlaySound(soundFile, IntPtr.Zero, SND_ASYNC | SND_FILENAME | SND_NODEFAULT);
                     return;
                 }
 
-                lock (_lock)
-                {
-                    if (_cachedWav == null)
-                    {
-                        _cachedWav = GenerateAlarmBeepWav();
-                        try
-                        {
-                            var dir = Path.GetDirectoryName(soundPath);
-                            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                            {
-                                Directory.CreateDirectory(dir);
-                            }
-                            File.WriteAllBytes(soundPath, _cachedWav);
-                        }
-                        catch { }
-                    }
-                }
-
-                PlaySound(_cachedWav, IntPtr.Zero, SND_ASYNC | SND_MEMORY | SND_NODEFAULT);
+                byte[] wav = GetOrGenerateWavBytes();
+                PlaySound(wav, IntPtr.Zero, SND_ASYNC | SND_MEMORY | SND_NODEFAULT);
             }
             else
             {
-                // Linux / macOS fallback
+                if (!string.IsNullOrEmpty(soundFile) && File.Exists(soundFile) && TryPlayLinuxAudioFile(soundFile))
+                {
+                    return;
+                }
                 Console.Write("\a");
             }
         }
@@ -66,15 +55,71 @@ public static class SoundService
         }
     }
 
+    private static byte[] GetOrGenerateWavBytes()
+    {
+        lock (_lock)
+        {
+            return _cachedWav ??= GenerateAlarmBeepWav();
+        }
+    }
+
+    private static string? EnsureAlarmWavFile()
+    {
+        string bundled = Path.Combine(AppContext.BaseDirectory, "Assets", "alarm.wav");
+        if (File.Exists(bundled))
+            return bundled;
+
+        string writablePath = Path.Combine(AppPaths.GetDataDirectory(), "Assets", "alarm.wav");
+        if (File.Exists(writablePath))
+            return writablePath;
+
+        try
+        {
+            byte[] wav = GetOrGenerateWavBytes();
+            string? dir = Path.GetDirectoryName(writablePath);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
+            File.WriteAllBytes(writablePath, wav);
+            return writablePath;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static bool TryPlayLinuxAudioFile(string wavPath)
+    {
+        string[] players = { "paplay", "pw-play", "aplay" };
+        foreach (string player in players)
+        {
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = player,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardError = true,
+                    RedirectStandardOutput = true
+                };
+                psi.ArgumentList.Add(wavPath);
+                var proc = Process.Start(psi);
+                if (proc != null)
+                {
+                    return true;
+                }
+            }
+            catch
+            {
+                // Пробуем следующий аудиоплеер Linux
+            }
+        }
+        return false;
+    }
+
     public static byte[] GenerateAlarmBeepWav()
     {
-        // 44.1 kHz, 16-bit mono PCM
-        // 3 sharp rising alert pulses with smooth attack/decay:
-        // Pulse 1: 880 Hz, 150 ms
-        // Silence: 40 ms
-        // Pulse 2: 1200 Hz, 180 ms
-        // Silence: 40 ms
-        // Pulse 3: 1500 Hz, 240 ms
         int sampleRate = 44100;
         using var ms = new MemoryStream();
         using var writer = new BinaryWriter(ms);
@@ -110,22 +155,19 @@ public static class SoundService
 
         int byteCount = samples.Count * 2;
 
-        // RIFF header
         writer.Write("RIFF"u8);
         writer.Write(36 + byteCount);
         writer.Write("WAVE"u8);
 
-        // fmt subchunk
         writer.Write("fmt "u8);
         writer.Write(16);
-        writer.Write((short)1); // PCM
-        writer.Write((short)1); // mono
+        writer.Write((short)1);
+        writer.Write((short)1);
         writer.Write(sampleRate);
         writer.Write(sampleRate * 2);
         writer.Write((short)2);
         writer.Write((short)16);
 
-        // data subchunk
         writer.Write("data"u8);
         writer.Write(byteCount);
         foreach (var sample in samples)

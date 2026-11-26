@@ -16,6 +16,8 @@ public partial class ObjectCommandsWindow : Window
 {
     private readonly ObjectDisplayItem _item;
     private readonly MainViewModel _vm;
+    private readonly string _devicePassword;
+    private bool _isPasswordVisible;
 
     public ObjectCommandsWindow() : this(new ObjectDisplayItem(), new MainViewModel())
     {
@@ -30,19 +32,34 @@ public partial class ObjectCommandsWindow : Window
         Title = $"Команды управления: {_item.Name}";
         TxtTitle.Text = $"Команды управления: {_item.Name}";
 
-        string devicePassword = string.IsNullOrWhiteSpace(_item.DevicePassword)
+        string decrypted = DevicePasswordProtector.Unprotect(_item.DevicePassword);
+        _devicePassword = string.IsNullOrWhiteSpace(decrypted)
             ? DeviceCommandBuilder.GetDefaultPassword(_item.DeviceType)
-            : _item.DevicePassword.Trim();
+            : decrypted.Trim();
 
         TxtPhone.Text = $"Номер: {_item.PhoneNumber}";
         TxtDistrict.Text = $"Участок: {_item.District}";
         TxtDeviceType.Text = $"Контроллер: {_item.DeviceTypeName}";
-        TxtPassword.Text = $"Пароль: {devicePassword}";
+        UpdatePasswordVisibility();
 
-        BuildCommandsList(devicePassword);
+        BuildCommandsList();
     }
 
-    private void BuildCommandsList(string devicePassword)
+    private void UpdatePasswordVisibility()
+    {
+        TxtPassword.Text = _isPasswordVisible
+            ? $"Пароль: {_devicePassword}"
+            : "Пароль: •••••";
+    }
+
+    private void BtnTogglePassword_Click(object? sender, RoutedEventArgs e)
+    {
+        _isPasswordVisible = !_isPasswordVisible;
+        UpdatePasswordVisibility();
+        BuildCommandsList();
+    }
+
+    private void BuildCommandsList()
     {
         PnlCommands.Children.Clear();
         var templates = DeviceCommandBuilder.GetTemplates(_item.DeviceType);
@@ -79,7 +96,7 @@ public partial class ObjectCommandsWindow : Window
                 var textStack = new StackPanel { Spacing = 3 };
                 var titleText = new TextBlock
                 {
-                    Text = template.Title,
+                    Text = template.RequiresConfirmation ? $"⚠ {template.Title}" : template.Title,
                     FontWeight = FontWeight.SemiBold,
                     FontSize = 13
                 };
@@ -92,13 +109,16 @@ public partial class ObjectCommandsWindow : Window
                     TextWrapping = TextWrapping.Wrap
                 };
 
-                string p = DeviceCommandBuilder.BuildPayload(template.Pattern, devicePassword);
+                string previewPayload = _isPasswordVisible
+                    ? DeviceCommandBuilder.BuildPayload(template.Pattern, _devicePassword)
+                    : DeviceCommandBuilder.BuildMaskedPayload(template.Pattern);
+
                 var payloadPreview = new TextBlock
                 {
                     FontSize = 11,
                     FontFamily = new FontFamily("Consolas, Courier New, monospace"),
                     Foreground = new SolidColorBrush(Color.Parse("#2ECC71")),
-                    Text = $"SMS: \"{p}\"",
+                    Text = $"SMS: \"{previewPayload}\"",
                     Margin = new Thickness(0, 2, 0, 0)
                 };
 
@@ -129,12 +149,26 @@ public partial class ObjectCommandsWindow : Window
                 {
                     try
                     {
+                        if (template.RequiresConfirmation)
+                        {
+                            bool ok = await ConfirmDialogWindow.ShowAsync(
+                                this,
+                                "Подтверждение критической команды",
+                                $"Отправить команду «{template.Title}» ({template.Description}) на объект «{_item.Name}» ({_item.PhoneNumber})?",
+                                confirmText: "Отправить",
+                                isDangerous: true);
+
+                            if (!ok) return;
+                        }
+
                         sendBtn.IsEnabled = false;
-                        string payload = DeviceCommandBuilder.BuildPayload(template.Pattern, devicePassword);
-                        await _vm.EnqueueCommandAsync(_item.Id, payload, $"{template.Title}: {template.Description}");
+                        string realPayload = DeviceCommandBuilder.BuildPayload(template.Pattern, _devicePassword);
+                        string maskedPayload = DeviceCommandBuilder.BuildMaskedPayload(template.Pattern);
+
+                        await _vm.EnqueueCommandAsync(_item.Id, realPayload, $"{template.Title}: {template.Description}", maskedPayload);
 
                         BrdStatus.Background = new SolidColorBrush(Color.Parse("#1B5E20"));
-                        TxtStatus.Text = $"SMS-команда «{template.Title}» добавлена в очередь исходящих: {payload}";
+                        TxtStatus.Text = $"SMS-команда «{template.Title}» добавлена в очередь исходящих: {maskedPayload}";
                         BrdStatus.IsVisible = true;
                     }
                     catch (Exception ex)

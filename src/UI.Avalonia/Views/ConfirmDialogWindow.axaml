@@ -1,0 +1,21 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="KsitalTelemetryHub.UI.Avalonia.Views.ConfirmDialogWindow"
+        Title="Подтверждение"
+        Icon="/Assets/app.ico"
+        Width="440" Height="210"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+    <Grid RowDefinitions="*,Auto" Margin="22">
+        <StackPanel Grid.Row="0" Spacing="10" VerticalAlignment="Center">
+            <TextBlock x:Name="TxtTitle" Text="Подтвердите действие" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap"/>
+            <TextBlock x:Name="TxtMessage" Text="" FontSize="13" Foreground="#BDBDBD" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,16,0,0">
+            <Button x:Name="BtnCancel" Content="Отмена" Click="BtnCancel_Click" Padding="14,7"/>
+            <Button x:Name="BtnConfirm" Content="Подтвердить" Click="BtnConfirm_Click" Background="#0078D7" Foreground="White" Padding="14,7"/>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -47,25 +47,21 @@ if ([string]::IsNullOrWhiteSpace($Notes)) {
     $Notes = "Плановое обновление системы ($Type) $nextTag"
 }
 
-# Обновляем версию в UI.Avalonia.csproj
-$projPath = "src\UI.Avalonia\UI.Avalonia.csproj"
-$projXml = [xml](Get-Content $projPath -Raw)
-$verNode = $projXml.SelectSingleNode("//Version")
-if ($verNode) {
-    $verNode.InnerText = $nextVer
+# Обновляем версию в UI.Avalonia.csproj и Service.Worker.csproj
+$projPaths = @("src\UI.Avalonia\UI.Avalonia.csproj", "src\Service.Worker\Service.Worker.csproj")
+foreach ($projPath in $projPaths) {
+    $projXml = [xml](Get-Content $projPath -Raw)
+    $verNode = $projXml.SelectSingleNode("//Version")
+    if ($verNode) { $verNode.InnerText = $nextVer }
+    $fileVerNode = $projXml.SelectSingleNode("//FileVersion")
+    if ($fileVerNode) { $fileVerNode.InnerText = "$nextVer.0" }
+    $asmVerNode = $projXml.SelectSingleNode("//AssemblyVersion")
+    if ($asmVerNode) { $asmVerNode.InnerText = "$nextVer.0" }
+    $projXml.Save((Resolve-Path $projPath))
 }
-$fileVerNode = $projXml.SelectSingleNode("//FileVersion")
-if ($fileVerNode) {
-    $fileVerNode.InnerText = "$nextVer.0"
-}
-$asmVerNode = $projXml.SelectSingleNode("//AssemblyVersion")
-if ($asmVerNode) {
-    $asmVerNode.InnerText = "$nextVer.0"
-}
-$projXml.Save((Resolve-Path $projPath))
 
 Write-Host "`n1. Фиксация изменений в ветке main..." -ForegroundColor Yellow
-git add $projPath
+git add $projPaths
 git commit -m "chore: bump version to $nextTag"
 git push origin main
 

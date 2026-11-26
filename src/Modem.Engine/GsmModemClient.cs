@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO.Ports;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -10,10 +11,21 @@ namespace KsitalTelemetryHub.Modem.Engine;
 
 public class GsmModemClient : IDisposable
 {
+    private static readonly Regex ValidPhoneRegex = new(@"^\+?\d{5,15}$", RegexOptions.Compiled);
+    private static readonly Regex CmglRegex = new(@"\+CMGL:\s*(?<idx>\d+),\s*\d+,\s*[^,\r\n]*,\s*\d+\r?\n(?<pdu>[0-9A-Fa-f]+)", RegexOptions.Multiline | RegexOptions.Compiled);
+
     private readonly string _portName;
     private readonly int _baudRate;
     private SerialPort? _serialPort;
     private readonly object _lock = new();
+    private readonly Dictionary<string, MultipartBuffer> _multipartBuffers = new(StringComparer.OrdinalIgnoreCase);
+
+    private sealed class MultipartBuffer
+    {
+        public int TotalParts { get; init; }
+        public DateTime CreatedAtUtc { get; init; } = DateTime.UtcNow;
+        public Dictionary<int, DecodedSms> Parts { get; } = new();
+    }
 
     public bool IsConnected => _serialPort != null && _serialPort.IsOpen;
     public int CurrentBaudRate { get; private set; } = 9600;
@@ -24,6 +36,42 @@ public class GsmModemClient : IDisposable
         _portName = portName;
         _baudRate = baudRate > 0 ? baudRate : 9600;
         CurrentBaudRate = _baudRate;
+    }
+
+    /// <summary>
+    /// Проверяет и очищает номер телефона перед подстановкой в AT-команды (защита от AT-инъекций).
+    /// </summary>
+    public static string ValidateAndSanitizePhone(string phoneNumber)
+    {
+        if (string.IsNullOrWhiteSpace(phoneNumber))
+            throw new ArgumentException("Номер телефона получателя не может быть пустым.", nameof(phoneNumber));
+
+        if (phoneNumber.IndexOfAny(new[] { '\r', '\n', '"', '\x1A', '\x1B', '\0' }) >= 0)
+            throw new ArgumentException("Номер телефона содержит недопустимые управляющие символы.", nameof(phoneNumber));
+
+        string normalized = PhoneNumber.Normalize(phoneNumber);
+        if (!ValidPhoneRegex.IsMatch(normalized))
+            throw new ArgumentException($"Некорректный формат номера телефона для AT-команды: '{phoneNumber}'.", nameof(phoneNumber));
+
+        return normalized;
+    }
+
+    /// <summary>
+    /// Удаляет управляющие байты Ctrl+Z / Esc / NUL из текста SMS (защита от обрыва AT+CMGS и инъекций).
+    /// </summary>
+    public static string SanitizeSmsText(string messageText)
+    {
+        if (string.IsNullOrEmpty(messageText))
+            return string.Empty;
+
+        var sb = new StringBuilder(messageText.Length);
+        foreach (char c in messageText)
+        {
+            if (c == '\x1A' || c == '\x1B' || c == '\0')
+                continue;
+            sb.Append(c);
+        }
+        return sb.ToString();
     }
 
     /// <summary>
@@ -77,8 +125,6 @@ public class GsmModemClient : IDisposable
         {
             if (IsConnected) return;
 
-            // Кандидаты скоростей: 9600 (промышленный стандарт RS-232 / Teleofis RX100),
-            // заданная скорость и другие стандартные скорости.
             var candidateBaudRates = new List<int>();
             if (_baudRate > 0) candidateBaudRates.Add(_baudRate);
             if (!candidateBaudRates.Contains(9600)) candidateBaudRates.Add(9600);
@@ -95,17 +141,16 @@ public class GsmModemClient : IDisposable
                 WriteTimeout = 2500,
                 NewLine = "\r",
                 Encoding = Encoding.ASCII,
-                DtrEnable = true, // КРИТИЧЕСКИ ВАЖНО: пробуждение приемопередатчика RS-232 и модема
-                RtsEnable = true, // КРИТИЧЕСКИ ВАЖНО: готовность приема для аппаратного контроля потока
+                DtrEnable = true, // Пробуждение приемопередатчика RS-232 и модема
+                RtsEnable = true, // Готовность приема
                 Handshake = Handshake.None
             };
 
             _serialPort.Open();
 
-            // Гарантируем активные уровни DTR и RTS (+12В) после открытия порта
             _serialPort.DtrEnable = true;
             _serialPort.RtsEnable = true;
-            Thread.Sleep(150); // Пауза для пробуждения процессора модема
+            Thread.Sleep(150);
 
             bool atResponded = false;
             int successfulBaud = initialBaud;
@@ -144,10 +189,8 @@ public class GsmModemClient : IDisposable
 
             CurrentBaudRate = successfulBaud;
 
-            // Выключаем эхо команд для упрощения парсинга ответов
             SendCommand("ATE0");
 
-            // Включаем режим PDU (0 - PDU, 1 - Text)
             string pduResponse = SendCommand("AT+CMGF=0");
             if (!pduResponse.Contains("OK"))
             {
@@ -157,7 +200,93 @@ public class GsmModemClient : IDisposable
     }
 
     /// <summary>
-    /// Опрашивает модем на наличие входящих SMS, декодирует их и удаляет из памяти модема.
+    /// Извлекает пары (индекс, PDU) из ответа модема на AT+CMGL=4.
+    /// </summary>
+    public static List<(string Index, string Pdu)> ExtractCmglEntries(string response)
+    {
+        var entries = new List<(string Index, string Pdu)>();
+        if (string.IsNullOrWhiteSpace(response)) return entries;
+
+        foreach (Match match in CmglRegex.Matches(response))
+        {
+            entries.Add((match.Groups["idx"].Value, match.Groups["pdu"].Value.Trim()));
+        }
+        return entries;
+    }
+
+    /// <summary>
+    /// Склеивает многосегментные SMS (concatenated UDH) и возвращает готовые сообщения.
+    /// Неполные сегменты удерживаются в буфере до прихода остальных частей (до 2 минут).
+    /// </summary>
+    public List<DecodedSms> AssembleMessages(IEnumerable<PduDecodeResult> decodedParts, DateTime? nowUtc = null)
+    {
+        DateTime currentUtc = nowUtc ?? DateTime.UtcNow;
+        var ready = new List<DecodedSms>();
+
+        lock (_lock)
+        {
+            foreach (var item in decodedParts)
+            {
+                if (item.Concat == null)
+                {
+                    ready.Add(item.Sms);
+                    continue;
+                }
+
+                string normSender = PhoneNumber.Normalize(item.Sms.SenderNumber);
+                if (string.IsNullOrEmpty(normSender)) normSender = item.Sms.SenderNumber;
+                string key = $"{normSender}|{item.Concat.ReferenceNumber}|{item.Concat.TotalParts}";
+
+                if (!_multipartBuffers.TryGetValue(key, out var buffer))
+                {
+                    buffer = new MultipartBuffer
+                    {
+                        TotalParts = item.Concat.TotalParts,
+                        CreatedAtUtc = currentUtc
+                    };
+                    _multipartBuffers[key] = buffer;
+                }
+
+                buffer.Parts[item.Concat.PartNumber] = item.Sms;
+
+                if (buffer.Parts.Count >= buffer.TotalParts)
+                {
+                    ready.Add(MergeBuffer(buffer));
+                    _multipartBuffers.Remove(key);
+                }
+            }
+
+            // Выдаём просроченные неполные сегменты (> 2 минут), чтобы не терять данные при обрыве одного сегмента в сети
+            var expiredKeys = _multipartBuffers
+                .Where(kv => currentUtc - kv.Value.CreatedAtUtc >= TimeSpan.FromMinutes(2))
+                .Select(kv => kv.Key)
+                .ToList();
+
+            foreach (var key in expiredKeys)
+            {
+                ready.Add(MergeBuffer(_multipartBuffers[key]));
+                _multipartBuffers.Remove(key);
+            }
+        }
+
+        return ready;
+    }
+
+    private static DecodedSms MergeBuffer(MultipartBuffer buffer)
+    {
+        var ordered = buffer.Parts.OrderBy(kv => kv.Key).Select(kv => kv.Value).ToList();
+        var first = ordered[0];
+        return new DecodedSms
+        {
+            SenderNumber = first.SenderNumber,
+            Timestamp = ordered.Min(p => p.Timestamp),
+            Text = string.Concat(ordered.Select(p => p.Text)),
+            RawPdu = string.Join(";", ordered.Select(p => p.RawPdu))
+        };
+    }
+
+    /// <summary>
+    /// Опрашивает модем на наличие входящих SMS, декодирует (включая склейку длинных SMS) и удаляет из памяти модема.
     /// </summary>
     public List<DecodedSms> FetchAndPurgeSms()
     {
@@ -166,25 +295,22 @@ public class GsmModemClient : IDisposable
             if (!IsConnected)
                 throw new InvalidOperationException("Модем не подключен. Сначала вызовите Connect().");
 
-            var messages = new List<DecodedSms>();
-
-            // AT+CMGL=4 возвращает все сообщения в PDU-режиме
+            // Гарантируем PDU-режим перед AT+CMGL=4
             string response = SendCommand("AT+CMGL=4", timeoutMs: 5000);
-
-            // Регулярное выражение для поиска строк +CMGL: <index>,<status>,[<alpha>],<length>\r\n<PDU_HEX>
-            var regex = new Regex(@"\+CMGL:\s*(?<idx>\d+),\s*\d+,\s*.*?,?\s*\d+\r?\n(?<pdu>[0-9A-Fa-f]+)", RegexOptions.Multiline);
-            var matches = regex.Matches(response);
-
-            foreach (Match match in matches)
+            if (response.Contains("ERROR"))
             {
-                string idx = match.Groups["idx"].Value;
-                string pdu = match.Groups["pdu"].Value.Trim();
+                SendCommand("AT+CMGF=0");
+                response = SendCommand("AT+CMGL=4", timeoutMs: 5000);
+            }
 
+            var decodedParts = new List<PduDecodeResult>();
+            var entries = ExtractCmglEntries(response);
+
+            foreach (var (idx, pdu) in entries)
+            {
                 try
                 {
-                    // Декодируем сообщение через написанный PduDecoder
-                    var decoded = PduDecoder.Decode(pdu);
-                    messages.Add(decoded);
+                    decodedParts.Add(PduDecoder.DecodeWithMetadata(pdu));
                 }
                 catch
                 {
@@ -192,8 +318,6 @@ public class GsmModemClient : IDisposable
                 }
                 finally
                 {
-                    // Гарантированно удаляем SMS из памяти модема (даже если PDU был поврежден или это спам),
-                    // чтобы память SIM-карты/модема никогда не переполнялась
                     try
                     {
                         SendCommand($"AT+CMGD={idx}");
@@ -202,7 +326,7 @@ public class GsmModemClient : IDisposable
                 }
             }
 
-            return messages;
+            return AssembleMessages(decodedParts);
         }
     }
 
@@ -229,7 +353,8 @@ public class GsmModemClient : IDisposable
 
                 string current = sb.ToString();
                 if (current.Contains("OK\r") || current.Contains("OK\n") ||
-                    current.Contains("ERROR\r") || current.Contains("ERROR\n"))
+                    current.Contains("ERROR\r") || current.Contains("ERROR\n") ||
+                    current.Contains("+CMS ERROR"))
                 {
                     break;
                 }
@@ -240,9 +365,6 @@ public class GsmModemClient : IDisposable
         return sb.ToString();
     }
 
-    /// <summary>
-    /// Возвращает список всех доступных в Windows COM-портов.
-    /// </summary>
     public static string[] GetAvailablePorts()
     {
         return SerialPort.GetPortNames();
@@ -272,6 +394,9 @@ public class GsmModemClient : IDisposable
 
     public bool SendSms(string phoneNumber, string messageText)
     {
+        string safePhone = ValidateAndSanitizePhone(phoneNumber);
+        string safeText = SanitizeSmsText(messageText);
+
         if (_serialPort == null || !_serialPort.IsOpen)
         {
             Connect();
@@ -284,62 +409,99 @@ public class GsmModemClient : IDisposable
 
         lock (_lock)
         {
+            bool switchedToTextMode = false;
             try
             {
-                // 1. Включаем текстовый режим SMS
-                SendCommand("AT+CMGF=1");
-                Thread.Sleep(100);
-
-                // 2. Инициируем команду отправки на номер получателя
-                _serialPort.DiscardInBuffer();
-                _serialPort.Write($"AT+CMGS=\"{phoneNumber}\"\r");
-
-                // Ожидаем приглашения ввода '>' от модема
-                var startWait = DateTime.UtcNow;
-                bool promptReceived = false;
-                while ((DateTime.UtcNow - startWait).TotalSeconds < 5)
+                if (PduEncoder.RequiresUnicode(safeText))
                 {
-                    if (_serialPort.BytesToRead > 0)
+                    // Отправка не-ASCII/кириллицы прямо в PDU-режиме (UCS2)
+                    SendCommand("AT+CMGF=0");
+                    var pdus = PduEncoder.EncodeUcs2Submit(safePhone, safeText);
+                    foreach (var pdu in pdus)
                     {
-                        string chunk = _serialPort.ReadExisting();
-                        if (chunk.Contains(">"))
-                        {
-                            promptReceived = true;
-                            break;
-                        }
+                        if (!SendCmgsPayload($"AT+CMGS={pdu.TpduLength}\r", pdu.Hex))
+                            return false;
                     }
-                    Thread.Sleep(50);
+                    return true;
                 }
 
-                if (!promptReceived)
-                {
-                    _serialPort.Write(new byte[] { 0x1B }, 0, 1); // Escape
+                // Для стандартных ASCII-команд используем текстовый режим с гарантированным возвратом PDU в finally
+                string textModeResp = SendCommand("AT+CMGF=1");
+                if (!textModeResp.Contains("OK"))
                     return false;
-                }
 
-                // 3. Отправляем текст команды и символ завершения Ctrl+Z (0x1A)
-                _serialPort.Write(messageText + "\x1A");
+                switchedToTextMode = true;
+                Thread.Sleep(50);
 
-                // 4. Ожидаем подтверждения отправки (+CMGS: ... OK)
-                startWait = DateTime.UtcNow;
-                while ((DateTime.UtcNow - startWait).TotalSeconds < 15)
-                {
-                    if (_serialPort.BytesToRead > 0)
-                    {
-                        string response = _serialPort.ReadExisting();
-                        if (response.Contains("OK")) return true;
-                        if (response.Contains("ERROR")) return false;
-                    }
-                    Thread.Sleep(100);
-                }
-
-                return false;
+                return SendCmgsPayload($"AT+CMGS=\"{safePhone}\"\r", safeText);
             }
             catch
             {
                 return false;
             }
+            finally
+            {
+                if (switchedToTextMode && _serialPort != null && _serialPort.IsOpen)
+                {
+                    try
+                    {
+                        SendCommand("AT+CMGF=0");
+                    }
+                    catch { }
+                }
+            }
         }
+    }
+
+    private bool SendCmgsPayload(string cmgsHeaderCommand, string payload)
+    {
+        if (_serialPort == null || !_serialPort.IsOpen)
+            return false;
+
+        _serialPort.DiscardInBuffer();
+        _serialPort.Write(cmgsHeaderCommand);
+
+        var startWait = DateTime.UtcNow;
+        bool promptReceived = false;
+        while ((DateTime.UtcNow - startWait).TotalSeconds < 5)
+        {
+            if (_serialPort.BytesToRead > 0)
+            {
+                string chunk = _serialPort.ReadExisting();
+                if (chunk.Contains('>'))
+                {
+                    promptReceived = true;
+                    break;
+                }
+                if (chunk.Contains("ERROR"))
+                    return false;
+            }
+            Thread.Sleep(50);
+        }
+
+        if (!promptReceived)
+        {
+            _serialPort.Write(new byte[] { 0x1B }, 0, 1); // Escape
+            return false;
+        }
+
+        _serialPort.Write(payload + "\x1A");
+
+        startWait = DateTime.UtcNow;
+        var respSb = new StringBuilder();
+        while ((DateTime.UtcNow - startWait).TotalSeconds < 15)
+        {
+            if (_serialPort.BytesToRead > 0)
+            {
+                respSb.Append(_serialPort.ReadExisting());
+                string response = respSb.ToString();
+                if (response.Contains("OK")) return true;
+                if (response.Contains("ERROR")) return false;
+            }
+            Thread.Sleep(100);
+        }
+
+        return false;
     }
 
     public static int ParseSignalStrength(string response)
@@ -372,10 +534,6 @@ public class GsmModemClient : IDisposable
         return null;
     }
 
-    /// <summary>
-    /// Опрашивает уровень сигнала базовой станции GSM (AT+CSQ).
-    /// Возвращает значение RSSI (0..31, либо 0 если нет связи или 99).
-    /// </summary>
     public int GetSignalStrengthCsq()
     {
         lock (_lock)
@@ -387,18 +545,12 @@ public class GsmModemClient : IDisposable
                 string res = SendCommand("AT+CSQ", timeoutMs: 2000);
                 return ParseSignalStrength(res);
             }
-            catch
-            {
-            }
+            catch { }
 
             return 0;
         }
     }
 
-    /// <summary>
-    /// Опрашивает имя сотового оператора, в сети которого зарегистрирована SIM-карта (AT+COPS?).
-    /// Возвращает название оператора ("MTS", "MegaFon" и т.д.) либо null.
-    /// </summary>
     public string? GetOperatorName()
     {
         lock (_lock)
@@ -410,9 +562,7 @@ public class GsmModemClient : IDisposable
                 string res = SendCommand("AT+COPS?", timeoutMs: 3000);
                 return ParseOperatorName(res);
             }
-            catch
-            {
-            }
+            catch { }
 
             return null;
         }

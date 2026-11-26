@@ -1,5 +1,5 @@
-param(
-    [string]$Version = "2.2.0"
+﻿param(
+    [string]$Version = "2.3.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -159,6 +159,20 @@ if (-not $isccCandidates) {
     if (Test-Path $setupAvaloniaX86) {
         Write-Host "SUCCESS: 32-bit Windows Setup ready -> $setupAvaloniaX86" -ForegroundColor Green
     }
+}
+
+# ==============================================================================
+# 7. ГЕНЕРАЦИЯ SHA-256 CHECKSUMS ДЛЯ ПРОВЕРКИ ЦЕЛОСТНОСТИ ОБНОВЛЕНИЙ
+# ==============================================================================
+$checksumPath = Join-Path $distRoot "checksums.txt"
+$releaseFiles = Get-ChildItem -Path $distRoot -File | Where-Object { $_.Name -like "telemetry-hub-*" -and ($_.Extension -eq ".exe" -or $_.Name.EndsWith(".tar.gz")) }
+if ($releaseFiles) {
+    $lines = foreach ($f in $releaseFiles) {
+        $hash = (Get-FileHash -Path $f.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        "$hash  $($f.Name)"
+    }
+    Set-Content -Path $checksumPath -Value $lines -Encoding ASCII
+    Write-Host "SUCCESS: SHA-256 checksums -> $checksumPath" -ForegroundColor Green
 }
 
 Write-Host "=== Build Completed Successfully! ===" -ForegroundColor Green

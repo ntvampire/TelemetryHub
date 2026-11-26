@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Ports;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
@@ -41,16 +44,21 @@ public partial class SettingsView : UserControl
                 CmbComPorts.Items.Add(port);
             }
 
+            string? preferredPort = null;
             if (!string.IsNullOrWhiteSpace(ViewModel?.ComPortStatus) && ViewModel.ComPortStatus.StartsWith("COM: "))
             {
-                var activePort = ViewModel.ComPortStatus.Substring(5).Trim();
-                if (CmbComPorts.Items.Contains(activePort))
-                {
-                    CmbComPorts.SelectedItem = activePort;
-                }
+                preferredPort = ViewModel.ComPortStatus.Substring(5).Trim();
+            }
+            else
+            {
+                preferredPort = BackupService.LoadConfig().PreferredComPort;
             }
 
-            if (CmbComPorts.SelectedItem == null && CmbComPorts.Items.Count > 0)
+            if (!string.IsNullOrWhiteSpace(preferredPort) && CmbComPorts.Items.Contains(preferredPort))
+            {
+                CmbComPorts.SelectedItem = preferredPort;
+            }
+            else if (CmbComPorts.SelectedItem == null && CmbComPorts.Items.Count > 0)
             {
                 CmbComPorts.SelectedIndex = 0;
             }
@@ -79,19 +87,33 @@ public partial class SettingsView : UserControl
 
         try
         {
+            var cfg = BackupService.LoadConfig();
+            cfg.PreferredComPort = selectedPort;
+            BackupService.SaveConfig(cfg);
+
             using var db = new AppDbContext(App.DatabasePath);
             var status = await db.SystemStatus.FirstOrDefaultAsync(s => s.Id == 1);
-            if (status != null)
+            if (status == null)
             {
-                status.RequestedPortName = selectedPort;
-                await db.SaveChangesAsync();
-                TxtPortStatus.Text = $"Команда на переключение на {selectedPort} передана службе сбора.";
-                if (ViewModel != null) await ViewModel.RefreshDataAsync();
+                status = new SystemStatus
+                {
+                    Id = 1,
+                    PortName = selectedPort,
+                    RequestedPortName = selectedPort,
+                    IsWorkerAlive = false,
+                    IsModemConnected = false,
+                    LastHeartbeat = DateTime.MinValue
+                };
+                db.SystemStatus.Add(status);
             }
             else
             {
-                TxtPortStatus.Text = "Статус службы не найден в базе данных.";
+                status.RequestedPortName = selectedPort;
             }
+
+            await db.SaveChangesAsync();
+            TxtPortStatus.Text = $"Команда на переключение на {selectedPort} передана службе сбора.";
+            if (ViewModel != null) await ViewModel.RefreshDataAsync();
         }
         catch (Exception ex)
         {
@@ -162,7 +184,19 @@ public partial class SettingsView : UserControl
             if (files.Count == 0) return;
             var filePath = files[0].Path.LocalPath;
 
-            BackupService.RestoreBackup(filePath);
+            if (topLevel is Window ownerWindow)
+            {
+                bool confirmed = await ConfirmDialogWindow.ShowAsync(
+                    ownerWindow,
+                    "Восстановление базы данных",
+                    $"Восстановить рабочую БД из «{Path.GetFileName(filePath)}»? Служба сбора данных будет кратковременно перезапущена.",
+                    confirmText: "Восстановить",
+                    isDangerous: true);
+                if (!confirmed) return;
+            }
+
+            TxtBackupStatus.Text = "Проверка копии и остановка службы сбора данных...";
+            await BackupService.RestoreBackupAsync(filePath);
             TxtBackupStatus.Text = $"База данных успешно восстановлена из: {Path.GetFileName(filePath)}";
             if (ViewModel != null) await ViewModel.RefreshDataAsync();
         }
@@ -179,23 +213,44 @@ public partial class SettingsView : UserControl
 
         try
         {
-            var (hasUpdate, currentVer, remoteVer, notes, downloadUrl) = await UpdateService.CheckForUpdatesAsync();
+            var update = await UpdateService.CheckForUpdatesAsync();
 
-            if (hasUpdate && !string.IsNullOrWhiteSpace(downloadUrl))
+            if (update.HasUpdate && !string.IsNullOrWhiteSpace(update.DownloadUrl))
             {
-                TxtUpdateStatus.Text = $"Обнаружен новый релиз {remoteVer}! Скачивание...";
-                var progress = new Progress<int>(percent =>
+                if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
-                    TxtUpdateStatus.Text = $"Загрузка обновления {remoteVer}: {percent}%...";
+                    TxtUpdateStatus.Text = $"Доступен новый релиз {update.RemoteVersion}! Скачивание архива для Linux...";
+                    var progress = new Progress<int>(percent =>
+                    {
+                        TxtUpdateStatus.Text = $"Загрузка {update.AssetName} ({update.RemoteVersion}): {percent}%...";
+                    });
+                    var archivePath = await UpdateService.DownloadInstallerAsync(update.DownloadUrl, update.AssetName, update.ChecksumsUrl, progress);
+                    TxtUpdateStatus.Text = $"Архив обновления сохранён и проверен: {archivePath}. Распакуйте его для обновления.";
+                    return;
+                }
+
+                TxtUpdateStatus.Text = $"Обнаружен новый релиз {update.RemoteVersion}! Скачивание...";
+                var winProgress = new Progress<int>(percent =>
+                {
+                    TxtUpdateStatus.Text = $"Загрузка обновления {update.RemoteVersion}: {percent}%...";
                 });
 
-                var installerPath = await UpdateService.DownloadInstallerAsync(downloadUrl, progress);
-                TxtUpdateStatus.Text = "Запуск установщика...";
+                var installerPath = await UpdateService.DownloadInstallerAsync(update.DownloadUrl, update.AssetName, update.ChecksumsUrl, winProgress);
+                TxtUpdateStatus.Text = "Контрольная сумма проверена. Запуск установщика...";
                 UpdateService.LaunchInstallerAndExit(installerPath);
+            }
+            else if (update.HasUpdate && !string.IsNullOrWhiteSpace(update.ReleasePageUrl))
+            {
+                TxtUpdateStatus.Text = $"Доступен релиз {update.RemoteVersion}. Страница загрузки: {update.ReleasePageUrl}";
+                try
+                {
+                    Process.Start(new ProcessStartInfo(update.ReleasePageUrl) { UseShellExecute = true });
+                }
+                catch { }
             }
             else
             {
-                TxtUpdateStatus.Text = $"У вас установлена актуальная версия Telemetry Hub (v{currentVer}). Обновлений не найдено.";
+                TxtUpdateStatus.Text = $"У вас установлена актуальная версия Telemetry Hub (v{update.CurrentVersion}). Обновлений не найдено.";
             }
         }
         catch (Exception ex)
@@ -238,39 +293,7 @@ public partial class SettingsView : UserControl
                 return;
             }
 
-            using var db = new AppDbContext(App.DatabasePath);
-            int added = 0;
-            int updated = 0;
-
-            foreach (var target in imported)
-            {
-                string cleanPhone = PhoneNumber.Normalize(target.PhoneNumber);
-                if (string.IsNullOrEmpty(cleanPhone)) continue;
-
-                var existing = await db.Objects.FirstOrDefaultAsync(o => o.PhoneNumber == cleanPhone);
-                if (existing != null)
-                {
-                    if (!string.IsNullOrWhiteSpace(target.Name)) existing.Name = target.Name;
-                    if (!string.IsNullOrWhiteSpace(target.District)) existing.District = target.District;
-                    existing.DeviceType = target.DeviceType;
-                    if (!string.IsNullOrWhiteSpace(target.Password)) existing.DevicePassword = target.Password;
-                    updated++;
-                }
-                else
-                {
-                    db.Objects.Add(new MonitoredObject
-                    {
-                        Name = string.IsNullOrWhiteSpace(target.Name) ? $"Объект {cleanPhone}" : target.Name,
-                        PhoneNumber = cleanPhone,
-                        District = string.IsNullOrWhiteSpace(target.District) ? "Основной участок" : target.District,
-                        DeviceType = target.DeviceType,
-                        DevicePassword = string.IsNullOrWhiteSpace(target.Password) ? DeviceCommandBuilder.GetDefaultPassword(target.DeviceType) : target.Password
-                    });
-                    added++;
-                }
-            }
-
-            await db.SaveChangesAsync();
+            var (added, updated) = await SaveImportedObjectsAsync(imported, "Основной участок");
             TxtBackupStatus.Text = $"Импорт завершен: добавлено {added}, обновлено {updated} (всего в файле: {imported.Count}).";
             if (ViewModel != null) await ViewModel.RefreshDataAsync();
         }
@@ -310,39 +333,7 @@ public partial class SettingsView : UserControl
                 return;
             }
 
-            using var db = new AppDbContext(App.DatabasePath);
-            int added = 0;
-            int updated = 0;
-
-            foreach (var target in imported)
-            {
-                string cleanPhone = PhoneNumber.Normalize(target.PhoneNumber);
-                if (string.IsNullOrEmpty(cleanPhone)) continue;
-
-                var existing = await db.Objects.FirstOrDefaultAsync(o => o.PhoneNumber == cleanPhone);
-                if (existing != null)
-                {
-                    if (!string.IsNullOrWhiteSpace(target.Name)) existing.Name = target.Name;
-                    if (!string.IsNullOrWhiteSpace(target.District)) existing.District = target.District;
-                    existing.DeviceType = target.DeviceType;
-                    if (!string.IsNullOrWhiteSpace(target.Password)) existing.DevicePassword = target.Password;
-                    updated++;
-                }
-                else
-                {
-                    db.Objects.Add(new MonitoredObject
-                    {
-                        Name = string.IsNullOrWhiteSpace(target.Name) ? $"Объект {cleanPhone}" : target.Name,
-                        PhoneNumber = cleanPhone,
-                        District = string.IsNullOrWhiteSpace(target.District) ? "Основной район" : target.District,
-                        DeviceType = target.DeviceType,
-                        DevicePassword = string.IsNullOrWhiteSpace(target.Password) ? DeviceCommandBuilder.GetDefaultPassword(target.DeviceType) : target.Password
-                    });
-                    added++;
-                }
-            }
-
-            await db.SaveChangesAsync();
+            var (added, updated) = await SaveImportedObjectsAsync(imported, "Основной район");
             TxtBackupStatus.Text = $"Импорт GSMGuard завершен: добавлено {added}, обновлено {updated} (всего объектов в файле: {imported.Count}).";
             if (ViewModel != null) await ViewModel.RefreshDataAsync();
         }
@@ -350,6 +341,49 @@ public partial class SettingsView : UserControl
         {
             TxtBackupStatus.Text = $"Ошибка импорта GSMGuard: {ex.Message}";
         }
+    }
+
+    private static async Task<(int Added, int Updated)> SaveImportedObjectsAsync(List<ImportExportItem> imported, string defaultDistrict)
+    {
+        using var db = new AppDbContext(App.DatabasePath);
+        int added = 0;
+        int updated = 0;
+
+        foreach (var target in imported)
+        {
+            string cleanPhone = PhoneNumber.Normalize(target.PhoneNumber);
+            if (string.IsNullOrEmpty(cleanPhone)) continue;
+
+            string rawPass = string.IsNullOrWhiteSpace(target.Password)
+                ? DeviceCommandBuilder.GetDefaultPassword(target.DeviceType)
+                : target.Password.Trim();
+            string protectedPass = DevicePasswordProtector.Protect(rawPass);
+
+            var existing = await db.Objects.FirstOrDefaultAsync(o => o.PhoneNumber == cleanPhone);
+            if (existing != null)
+            {
+                if (!string.IsNullOrWhiteSpace(target.Name)) existing.Name = target.Name;
+                if (!string.IsNullOrWhiteSpace(target.District)) existing.District = target.District;
+                existing.DeviceType = target.DeviceType;
+                if (!string.IsNullOrWhiteSpace(target.Password)) existing.DevicePassword = protectedPass;
+                updated++;
+            }
+            else
+            {
+                db.Objects.Add(new MonitoredObject
+                {
+                    Name = string.IsNullOrWhiteSpace(target.Name) ? $"Объект {cleanPhone}" : target.Name,
+                    PhoneNumber = cleanPhone,
+                    District = string.IsNullOrWhiteSpace(target.District) ? defaultDistrict : target.District,
+                    DeviceType = target.DeviceType,
+                    DevicePassword = protectedPass
+                });
+                added++;
+            }
+        }
+
+        await db.SaveChangesAsync();
+        return (added, updated);
     }
 
     private async void BtnExportExcel_Click(object? sender, RoutedEventArgs e)
@@ -385,7 +419,7 @@ public partial class SettingsView : UserControl
                 Name = o.Name,
                 PhoneNumber = o.PhoneNumber,
                 DeviceType = o.DeviceType,
-                Password = o.DevicePassword
+                Password = DevicePasswordProtector.Unprotect(o.DevicePassword)
             }).ToList();
 
             ImportExportService.ExportToExcel(filePath, items);

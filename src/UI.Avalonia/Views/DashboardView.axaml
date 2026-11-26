@@ -102,7 +102,11 @@
                                                                    FontWeight="Bold"
                                                                    FontSize="13"
                                                                    Foreground="{Binding StatusBadgeBrush}"/>
-                                                        <TextBlock Text="{Binding BatteryVoltage, StringFormat='{}{0:F1} В'}"
+                                                        <TextBlock Text="{Binding BatteryVoltageFormatted}"
+                                                                   Foreground="#757575"
+                                                                   FontSize="11"/>
+                                                        <TextBlock Text="{Binding SimBalanceFormatted}"
+                                                                   IsVisible="{Binding HasSimBalance}"
                                                                    Foreground="#757575"
                                                                    FontSize="11"/>
                                                     </StackPanel>
@@ -115,6 +119,9 @@
                                                                    FontWeight="SemiBold"
                                                                    FontSize="12"
                                                                    Foreground="{Binding StatusBadgeBrush}"/>
+                                                        <TextBlock Text="{Binding LastSeenFormatted}"
+                                                                   Foreground="#757575"
+                                                                   FontSize="11"/>
                                                     </StackPanel>
 
                                                     <!-- Column 3: Temperatures -->

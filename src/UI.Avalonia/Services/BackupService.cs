@@ -1,9 +1,12 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using KsitalTelemetryHub.Core;
 using KsitalTelemetryHub.Storage.Sqlite;
 
 namespace KsitalTelemetryHub.UI.Avalonia.Services;
@@ -12,25 +15,26 @@ public class AppConfig
 {
     public string BackupDirectory { get; set; } = string.Empty;
     public string LastDailyBackupDate { get; set; } = string.Empty;
+    public bool IsSoundAlarmEnabled { get; set; } = true;
+    public string? PreferredComPort { get; set; }
 }
 
 public static class BackupService
 {
-    private static readonly string SettingsFile = Path.Combine(AppContext.BaseDirectory, "settings.json");
     public const int MaxBackupCopies = 10;
 
-    public static string GetDefaultBackupDirectory()
-    {
-        return Path.Combine(AppContext.BaseDirectory, "backups");
-    }
+    private static string GetSettingsFilePath() => AppPaths.GetSettingsFilePath();
+
+    public static string GetDefaultBackupDirectory() => AppPaths.GetDefaultBackupDirectory();
 
     public static AppConfig LoadConfig()
     {
         try
         {
-            if (File.Exists(SettingsFile))
+            string settingsFile = GetSettingsFilePath();
+            if (File.Exists(settingsFile))
             {
-                var json = File.ReadAllText(SettingsFile);
+                var json = File.ReadAllText(settingsFile);
                 var cfg = JsonSerializer.Deserialize<AppConfig>(json);
                 if (cfg != null)
                 {
@@ -51,8 +55,12 @@ public static class BackupService
     {
         try
         {
+            string settingsFile = GetSettingsFilePath();
+            string? dir = Path.GetDirectoryName(settingsFile);
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+
             var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(SettingsFile, json);
+            File.WriteAllText(settingsFile, json);
         }
         catch { }
     }
@@ -92,7 +100,6 @@ public static class BackupService
         string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         string backupFile = Path.Combine(backupDir, $"telemetry_backup_{timestamp}.db");
 
-        // 1. Попытка безопасного создания снапшота через VACUUM INTO (WAL-safe)
         bool snapshotCreated = false;
         try
         {
@@ -114,10 +121,8 @@ public static class BackupService
             File.Copy(workingDb, backupFile, overwrite: true);
         }
 
-        // 2. Ротация: оставляем не более 10 самых свежих копий
         int totalCopies = RotateBackups(backupDir);
 
-        // 3. Если это ежедневное копирование - фиксируем дату
         if (isDaily)
         {
             var cfg = LoadConfig();
@@ -128,9 +133,6 @@ public static class BackupService
         return (backupFile, totalCopies);
     }
 
-    /// <summary>
-    /// Ротация резервных копий: оставляет не более MaxBackupCopies (10) файлов.
-    /// </summary>
     public static int RotateBackups(string backupDir)
     {
         try
@@ -161,9 +163,6 @@ public static class BackupService
         }
     }
 
-    /// <summary>
-    /// Автоматическая ежедневная проверка и создание резервной копии.
-    /// </summary>
     public static void CheckAndPerformDailyBackup()
     {
         try
@@ -182,41 +181,101 @@ public static class BackupService
     }
 
     /// <summary>
-    /// Восстановление базы данных из выбранной резервной копии.
+    /// Проверяет, что файл действительно является целостной базой данных SQLite TelemetryHub.
     /// </summary>
-    public static void RestoreBackup(string backupFilePath)
+    public static void ValidateSqliteBackupFile(string backupFilePath)
     {
         if (!File.Exists(backupFilePath))
-        {
             throw new FileNotFoundException("Файл резервной копии не найден:", backupFilePath);
+
+        var fi = new FileInfo(backupFilePath);
+        if (fi.Length < 100)
+            throw new InvalidDataException("Файл резервной копии слишком мал и не является базой SQLite.");
+
+        byte[] header = new byte[16];
+        using (var fs = new FileStream(backupFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+        {
+            int read = fs.Read(header, 0, header.Length);
+            if (read < 16 || Encoding.ASCII.GetString(header, 0, 15) != "SQLite format 3")
+                throw new InvalidDataException("Выбранный файл не является корректной базой данных SQLite.");
         }
+
+        var csb = new SqliteConnectionStringBuilder
+        {
+            DataSource = backupFilePath,
+            Mode = SqliteOpenMode.ReadOnly
+        };
+        using var conn = new SqliteConnection(csb.ToString());
+        conn.Open();
+
+        using var checkCmd = conn.CreateCommand();
+        checkCmd.CommandText = "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='Objects';";
+        long hasObjectsTable = (long)(checkCmd.ExecuteScalar() ?? 0L);
+        if (hasObjectsTable == 0)
+            throw new InvalidDataException("Выбранная база данных SQLite не содержит таблицы Objects.");
+    }
+
+    /// <summary>
+    /// Восстановление базы данных из выбранной резервной копии с безопасной остановкой службы сбора.
+    /// </summary>
+    public static async Task RestoreBackupAsync(string backupFilePath)
+    {
+        ValidateSqliteBackupFile(backupFilePath);
 
         string workingDb = App.DatabasePath;
+        bool wasServiceRunning = WorkerServiceManager.IsWindowsServiceRunning();
 
-        // 1. Создаем страховочную копию текущей БД перед накатом
-        if (File.Exists(workingDb))
+        // 1. Останавливаем службу / автономный воркер, чтобы освободить дескрипторы WAL/SHM
+        if (wasServiceRunning)
         {
-            try
-            {
-                string safetyPath = Path.Combine(AppContext.BaseDirectory, $"telemetry_pre_restore_{DateTime.Now:yyyyMMdd_HHmmss}.bak");
-                File.Copy(workingDb, safetyPath, true);
-            }
-            catch { }
+            await WorkerServiceManager.StopWindowsServiceAsync();
         }
+        WorkerServiceManager.StopWorkerIfStandalone();
+        await Task.Delay(500);
 
-        // 2. Сбрасываем пулы подключений SQLite
-        SqliteConnection.ClearAllPools();
+        try
+        {
+            // 2. Страховочная копия текущей БД перед накатом
+            if (File.Exists(workingDb))
+            {
+                try
+                {
+                    string backupDir = GetBackupDirectory();
+                    Directory.CreateDirectory(backupDir);
+                    string safetyPath = Path.Combine(backupDir, $"telemetry_pre_restore_{DateTime.Now:yyyyMMdd_HHmmss}.bak");
+                    File.Copy(workingDb, safetyPath, true);
+                }
+                catch { }
+            }
 
-        // 3. Заменяем файл БД
-        File.Copy(backupFilePath, workingDb, overwrite: true);
+            // 3. Сбрасываем пулы подключений SQLite
+            SqliteConnection.ClearAllPools();
 
-        // 4. Удаляем возможные остаточные файлы журнала WAL/SHM
-        string walFile = workingDb + "-wal";
-        string shmFile = workingDb + "-shm";
-        try { if (File.Exists(walFile)) File.Delete(walFile); } catch { }
-        try { if (File.Exists(shmFile)) File.Delete(shmFile); } catch { }
+            // 4. Удаляем возможные остаточные файлы журнала WAL/SHM до копирования
+            string walFile = workingDb + "-wal";
+            string shmFile = workingDb + "-shm";
+            if (File.Exists(walFile)) File.Delete(walFile);
+            if (File.Exists(shmFile)) File.Delete(shmFile);
 
-        // 5. Инициализируем структуру и WAL-режим для восстановленной БД
-        AppDbContext.EnsureDatabaseUpdated(workingDb);
+            // 5. Заменяем файл БД
+            string? dbDir = Path.GetDirectoryName(workingDb);
+            if (!string.IsNullOrEmpty(dbDir)) Directory.CreateDirectory(dbDir);
+            File.Copy(backupFilePath, workingDb, overwrite: true);
+
+            // 6. Инициализируем структуру и WAL-режим для восстановленной БД
+            AppDbContext.EnsureDatabaseUpdated(workingDb);
+        }
+        finally
+        {
+            // 7. Запускаем службу/воркер обратно
+            if (wasServiceRunning)
+            {
+                await WorkerServiceManager.TryStartWindowsServiceAsync();
+            }
+            else
+            {
+                await WorkerServiceManager.EnsureWorkerStartedAsync();
+            }
+        }
     }
 }

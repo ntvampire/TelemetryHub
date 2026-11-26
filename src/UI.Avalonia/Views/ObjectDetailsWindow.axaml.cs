@@ -36,9 +36,10 @@ public partial class ObjectDetailsWindow : Window
         TxtName.Text = _item.Name;
         TxtPhone.Text = _item.PhoneNumber;
         TxtDistrict.Text = string.IsNullOrWhiteSpace(_item.District) ? "Основной участок" : _item.District;
-        TxtPassword.Text = string.IsNullOrWhiteSpace(_item.DevicePassword)
+        string unprotectedPassword = DevicePasswordProtector.Unprotect(_item.DevicePassword);
+        TxtPassword.Text = string.IsNullOrWhiteSpace(unprotectedPassword)
             ? DeviceCommandBuilder.GetDefaultPassword(_item.DeviceType)
-            : _item.DevicePassword;
+            : unprotectedPassword;
 
         CmbType.SelectionChanged += (s, e) =>
         {
@@ -90,6 +91,15 @@ public partial class ObjectDetailsWindow : Window
         if (_isNew) return;
         try
         {
+            bool confirmed = await ConfirmDialogWindow.ShowAsync(
+                this,
+                "Удаление объекта",
+                $"Вы действительно хотите удалить объект «{_item.Name}» ({_item.PhoneNumber}) и всю его историю телеметрии, команд и тревог?",
+                confirmText: "Удалить",
+                isDangerous: true);
+
+            if (!confirmed) return;
+
             await _vm.DeleteObjectAsync(_item.Id);
             Close();
         }
@@ -116,9 +126,10 @@ public partial class ObjectDetailsWindow : Window
         using var db = new AppDbContext(App.DatabasePath);
         var devType = (DeviceType)Math.Clamp(CmbType.SelectedIndex, 0, 2);
         string district = string.IsNullOrWhiteSpace(TxtDistrict.Text) ? "Основной участок" : TxtDistrict.Text.Trim();
-        string password = string.IsNullOrWhiteSpace(TxtPassword.Text)
+        string rawPassword = string.IsNullOrWhiteSpace(TxtPassword.Text)
             ? DeviceCommandBuilder.GetDefaultPassword(devType)
             : TxtPassword.Text.Trim();
+        string protectedPassword = DevicePasswordProtector.Protect(rawPassword);
 
         if (_isNew)
         {
@@ -134,7 +145,7 @@ public partial class ObjectDetailsWindow : Window
                 PhoneNumber = cleanPhone,
                 District = district,
                 DeviceType = devType,
-                DevicePassword = password,
+                DevicePassword = protectedPassword,
                 CreatedAt = DateTime.UtcNow
             };
             db.Objects.Add(newObj);
@@ -154,14 +165,14 @@ public partial class ObjectDetailsWindow : Window
                 existing.PhoneNumber = cleanPhone;
                 existing.District = district;
                 existing.DeviceType = devType;
-                existing.DevicePassword = password;
+                existing.DevicePassword = protectedPassword;
             }
 
             _item.Name = name;
             _item.PhoneNumber = cleanPhone;
             _item.District = district;
             _item.DeviceType = devType;
-            _item.DevicePassword = password;
+            _item.DevicePassword = protectedPassword;
         }
 
         await db.SaveChangesAsync();

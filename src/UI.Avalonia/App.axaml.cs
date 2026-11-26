@@ -3,6 +3,7 @@ using System.IO;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using KsitalTelemetryHub.Core;
 using KsitalTelemetryHub.Storage.Sqlite;
 using KsitalTelemetryHub.UI.Avalonia.Services;
 using KsitalTelemetryHub.UI.Avalonia.Views;
@@ -32,10 +33,10 @@ public partial class App : Application
     {
         try
         {
-            var logFile = Path.Combine(AppContext.BaseDirectory, "startup.log");
+            string logsDir = AppPaths.GetLogsDirectory();
+            Directory.CreateDirectory(logsDir);
+            var logFile = Path.Combine(logsDir, "startup.log");
             File.AppendAllText(logFile, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {message}{Environment.NewLine}");
-            var tempLog = Path.Combine(Path.GetTempPath(), "telemetry_startup.log");
-            File.AppendAllText(tempLog, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {message}{Environment.NewLine}");
         }
         catch { }
     }
@@ -44,18 +45,18 @@ public partial class App : Application
     {
         try
         {
-            var logFile = Path.Combine(AppContext.BaseDirectory, "startup.log");
+            string logsDir = AppPaths.GetLogsDirectory();
+            Directory.CreateDirectory(logsDir);
+            var logFile = Path.Combine(logsDir, "startup.log");
             File.AppendAllText(logFile, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [ERROR] {source}: {ex?.ToString() ?? "null"}{Environment.NewLine}");
-            var tempLog = Path.Combine(Path.GetTempPath(), "telemetry_startup.log");
-            File.AppendAllText(tempLog, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [ERROR] {source}: {ex?.ToString() ?? "null"}{Environment.NewLine}");
         }
         catch { }
     }
 
     public override void OnFrameworkInitializationCompleted()
     {
-        Log("App.OnFrameworkInitializationCompleted entered");
-        DatabasePath = Path.Combine(AppContext.BaseDirectory, "telemetry.db");
+        DatabasePath = AppPaths.GetDatabasePath();
+        Log($"App.OnFrameworkInitializationCompleted entered. DB={DatabasePath}");
 
         try
         {

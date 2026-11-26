@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using KsitalTelemetryHub.Core;
@@ -7,8 +8,8 @@ namespace KsitalTelemetryHub.Parser.Ksital;
 
 public class KsitalMessageParser : ITelemetryParser
 {
-    private static readonly Regex TempRegex = new(@"T(?<index>\d+)\s*=\s*(?<val>[+-]?\d+(?:[\.,]\d+)?)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex ZoneRegex = new(@"З(?<index>\d+)\s*:\s*(?<status>Норма|Сработка|Обрыв|Замыкание)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex TempRegex = new(@"[TТ](?<index>\d+)\s*=\s*(?<val>[+-]?\d+(?:[\.,]\d+)?)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex ZoneRegex = new(@"[ЗZ](?<index>\d+)\s*:\s*(?<status>Норма|Сработка|Обрыв|Замыкание)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex Power220Regex = new(@"220V\s*:\s*(?<val>Есть|Нет)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex BatteryRegex = new(@"(?:Асс|Acc|АКБ)\s*:\s*(?<val>\d+(?:[\.,]\d+)?)V?", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex BalanceRegex = new(@"Баланс\s*:\s*(?<val>[+-]?\d+(?:[\.,]\d+)?)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -78,7 +79,7 @@ public class KsitalMessageParser : ITelemetryParser
             report.AlarmDescription = alarmMatch.Value.Trim();
         }
 
-        // 2. Парсинг температур T1..Tn
+        // 2. Парсинг температур T1..Tn (поддерживаются латинская T и кириллическая Т)
         foreach (Match match in TempRegex.Matches(text))
         {
             string key = $"T{match.Groups["index"].Value}";
@@ -90,12 +91,13 @@ public class KsitalMessageParser : ITelemetryParser
         }
 
         // 3. Парсинг зон контроля З1..Зn
+        var zoneAlarms = new List<string>();
         foreach (Match match in ZoneRegex.Matches(text))
         {
             if (int.TryParse(match.Groups["index"].Value, out int zoneIdx))
             {
                 string status = match.Groups["status"].Value.ToLowerInvariant();
-                report.Zones[zoneIdx] = status switch
+                var zoneState = status switch
                 {
                     "норма" => ZoneState.Normal,
                     "сработка" => ZoneState.Triggered,
@@ -103,6 +105,33 @@ public class KsitalMessageParser : ITelemetryParser
                     "замыкание" => ZoneState.ShortCircuit,
                     _ => ZoneState.Normal
                 };
+                report.Zones[zoneIdx] = zoneState;
+
+                if (zoneState != ZoneState.Normal)
+                {
+                    string label = zoneState switch
+                    {
+                        ZoneState.Triggered => "Сработка",
+                        ZoneState.OpenCircuit => "Обрыв",
+                        ZoneState.ShortCircuit => "Замыкание",
+                        _ => "Тревога"
+                    };
+                    zoneAlarms.Add($"{label} шлейфа З{zoneIdx}");
+                }
+            }
+        }
+
+        if (zoneAlarms.Count > 0)
+        {
+            report.IsAlarm = true;
+            string joined = string.Join(", ", zoneAlarms);
+            if (string.IsNullOrWhiteSpace(report.AlarmDescription))
+            {
+                report.AlarmDescription = joined;
+            }
+            else if (!report.AlarmDescription.Contains(joined, StringComparison.OrdinalIgnoreCase))
+            {
+                report.AlarmDescription = $"{report.AlarmDescription}; {joined}";
             }
         }
 
@@ -110,9 +139,16 @@ public class KsitalMessageParser : ITelemetryParser
         var pwrMatch = Power220Regex.Match(text);
         if (pwrMatch.Success)
         {
-            report.MainPower = pwrMatch.Groups["val"].Value.Equals("Есть", StringComparison.OrdinalIgnoreCase)
-                ? PowerState.Normal
-                : PowerState.Off;
+            bool isPowerOk = pwrMatch.Groups["val"].Value.Equals("Есть", StringComparison.OrdinalIgnoreCase);
+            report.MainPower = isPowerOk ? PowerState.Normal : PowerState.Off;
+            if (!isPowerOk)
+            {
+                report.IsAlarm = true;
+                if (string.IsNullOrWhiteSpace(report.AlarmDescription))
+                {
+                    report.AlarmDescription = "Авария: Отсутствует основное питание 220V";
+                }
+            }
         }
 
         // 5. Напряжение резервного аккумулятора

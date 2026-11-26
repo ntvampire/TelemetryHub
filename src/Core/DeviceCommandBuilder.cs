@@ -2,7 +2,12 @@ using System.Collections.Generic;
 
 namespace KsitalTelemetryHub.Core;
 
-public record CommandTemplate(string Title, string Pattern, string Description, string Category = "Общие");
+public record CommandTemplate(
+    string Title,
+    string Pattern,
+    string Description,
+    string Category = "Общие",
+    bool RequiresConfirmation = false);
 
 public static class DeviceCommandBuilder
 {
@@ -12,7 +17,7 @@ public static class DeviceCommandBuilder
         {
             // Охрана и контроль
             new CommandTemplate("Поставить на контроль", "Ust control {PASS}", "Взятие всех охранных зон объекта на контроль", "Охрана и контроль"),
-            new CommandTemplate("Снять с контроля", "Otkl control {PASS}", "Снятие охранных зон объекта с контроля", "Охрана и контроль"),
+            new CommandTemplate("Снять с контроля", "Otkl control {PASS}", "Снятие охранных зон объекта с контроля", "Охрана и контроль", RequiresConfirmation: true),
 
             // Запросы и телеметрия
             new CommandTemplate("Запрос отчета (Kak dela)", "Kak dela? {PASS}", "Комплексный отчет: температуры, 220V, АКБ, статус зон", "Запросы и телеметрия"),
@@ -39,7 +44,7 @@ public static class DeviceCommandBuilder
         {
             // Охрана и контроль
             new CommandTemplate("Поставить на контроль (Охрана)", "/{PASS} ARM !", "Перевод контроллера CCU в режим полной охраны", "Охрана и контроль"),
-            new CommandTemplate("Снять с контроля (Наблюдение)", "/{PASS} DISARM !", "Снятие охраны, перевод в режим наблюдения", "Охрана и контроль"),
+            new CommandTemplate("Снять с контроля (Наблюдение)", "/{PASS} DISARM !", "Снятие охраны, перевод в режим наблюдения", "Охрана и контроль", RequiresConfirmation: true),
             new CommandTemplate("Режим ЗАЩИТА", "/{PASS} PROTECT !", "Включение режима защитного контура CCU", "Охрана и контроль"),
 
             // Запросы и телеметрия
@@ -59,7 +64,7 @@ public static class DeviceCommandBuilder
             // Сервис и конфигурация
             new CommandTemplate("Версия устройства", "/{PASS} VERSION", "Запрос аппаратной версии и прошивки CCU", "Сервис и конфигурация"),
             new CommandTemplate("Синхронизация времени", "/{PASS} SYNCTIME !", "Синхронизация встроенных часов контроллера", "Сервис и конфигурация"),
-            new CommandTemplate("Перезагрузка CCU", "{PASS} Reboot", "Программная перезагрузка контроллера", "Сервис и конфигурация")
+            new CommandTemplate("Перезагрузка CCU", "{PASS} Reboot", "Программная перезагрузка контроллера", "Сервис и конфигурация", RequiresConfirmation: true)
         },
         DeviceType.OwenPlc => new[]
         {
@@ -74,9 +79,9 @@ public static class DeviceCommandBuilder
             new CommandTemplate("Выгрузка аварий", "PASS:{PASS} CMD:ALARMS", "Выгрузка активных кодов и текстовых аварий", "Запросы и телеметрия"),
 
             // Управление и блокировки
-            new CommandTemplate("Сброс аварии", "PASS:{PASS} CMD:RESET", "Дистанционный сброс аварийных блокировок автоматики", "Управление и блокировки"),
-            new CommandTemplate("Пуск контура", "PASS:{PASS} CMD:START", "Команда пуска технологического процесса", "Управление и блокировки"),
-            new CommandTemplate("Стоп контура", "PASS:{PASS} CMD:STOP", "Команда останова технологического процесса", "Управление и блокировки")
+            new CommandTemplate("Сброс аварии", "PASS:{PASS} CMD:RESET", "Дистанционный сброс аварийных блокировок автоматики", "Управление и блокировки", RequiresConfirmation: true),
+            new CommandTemplate("Пуск контура", "PASS:{PASS} CMD:START", "Команда пуска технологического процесса", "Управление и блокировки", RequiresConfirmation: true),
+            new CommandTemplate("Стоп контура", "PASS:{PASS} CMD:STOP", "Команда останова технологического процесса", "Управление и блокировки", RequiresConfirmation: true)
         },
         _ => System.Array.Empty<CommandTemplate>()
     };
@@ -92,5 +97,10 @@ public static class DeviceCommandBuilder
     public static string BuildPayload(string pattern, string password)
     {
         return pattern.Replace("{PASS}", password ?? string.Empty).Trim();
+    }
+
+    public static string BuildMaskedPayload(string pattern)
+    {
+        return pattern.Replace("{PASS}", "***").Trim();
     }
 }

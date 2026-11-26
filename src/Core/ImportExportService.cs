@@ -34,16 +34,25 @@ public static class ImportExportService
         int row = 2;
         foreach (var target in targets)
         {
-            worksheet.Cell(row, 1).Value = string.IsNullOrWhiteSpace(target.District) ? "Основной район" : target.District;
-            worksheet.Cell(row, 2).Value = target.Name;
+            worksheet.Cell(row, 1).Value = SanitizeSpreadsheetText(string.IsNullOrWhiteSpace(target.District) ? "Основной район" : target.District);
+            worksheet.Cell(row, 2).Value = SanitizeSpreadsheetText(target.Name);
             worksheet.Cell(row, 3).Value = target.PhoneNumber;
             worksheet.Cell(row, 4).Value = target.DeviceTypeName;
-            worksheet.Cell(row, 5).Value = target.Password;
+            worksheet.Cell(row, 5).Value = SanitizeSpreadsheetText(target.Password, allowPlusMinus: true);
             row++;
         }
 
         worksheet.Columns().AdjustToContents();
         workbook.SaveAs(filePath);
+    }
+
+    private static string SanitizeSpreadsheetText(string? value, bool allowPlusMinus = false)
+    {
+        if (string.IsNullOrEmpty(value)) return string.Empty;
+        char first = value[0];
+        bool isFormulaTrigger = first == '=' || first == '@' || first == '\t' || first == '\r' ||
+                                (!allowPlusMinus && (first == '+' || first == '-'));
+        return isFormulaTrigger ? "'" + value : value;
     }
 
     public static List<ImportExportItem> ImportFromFile(string filePath)

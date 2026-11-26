@@ -197,9 +197,9 @@ public class EndToEndIntegrationTests : IDisposable
         var totalEvents = await db.Alarms.CountAsync();
         Assert.Equal(100, totalEvents);
 
-        // Проверяем, что сохранились самые свежие 100 событий (с #21 по #120)
-        var oldestRemaining = await db.Alarms.OrderBy(a => a.Timestamp).FirstAsync();
-        Assert.Equal("Событие #21", oldestRemaining.Description);
+        // Все 40 неподтверждённых тревог должны сохраниться + 60 самых свежих прочих событий
+        var unackAlarmsCount = await db.Alarms.CountAsync(a => !a.IsAcknowledged && a.EventType == "Alarm");
+        Assert.Equal(40, unackAlarmsCount);
 
         var newestRemaining = await db.Alarms.OrderByDescending(a => a.Timestamp).FirstAsync();
         Assert.Equal("Событие #120", newestRemaining.Description);
@@ -469,5 +469,70 @@ public class EndToEndIntegrationTests : IDisposable
                 try { File.Delete(testDb); } catch { }
             }
         }
+    }
+
+    [Fact]
+    public async Task RotateJournalEvents_NeverDeletes_UnacknowledgedAlarms()
+    {
+        using var db = new AppDbContext(_dbPath);
+        var obj = new MonitoredObject { Name = "Котельная А", PhoneNumber = "+79995554433" };
+        db.Objects.Add(obj);
+        await db.SaveChangesAsync();
+
+        // Старая неподтверждённая тревога (должна выжить даже после 120 новых отчётов)
+        var oldAlarm = new AlarmEvent
+        {
+            MonitoredObjectId = obj.Id,
+            Timestamp = DateTime.UtcNow.AddDays(-5),
+            Description = "Критическая старая тревога",
+            EventType = "Alarm",
+            IsAcknowledged = false
+        };
+        db.Alarms.Add(oldAlarm);
+
+        for (int i = 1; i <= 120; i++)
+        {
+            db.Alarms.Add(new AlarmEvent
+            {
+                MonitoredObjectId = obj.Id,
+                Timestamp = DateTime.UtcNow.AddMinutes(i),
+                Description = $"Регулярный отчет #{i}",
+                EventType = "Report",
+                IsAcknowledged = true
+            });
+        }
+        await db.SaveChangesAsync();
+
+        await db.RotateJournalEventsAsync(100);
+
+        var remainingAlarm = await db.Alarms.FirstOrDefaultAsync(a => a.Id == oldAlarm.Id);
+        Assert.NotNull(remainingAlarm);
+        Assert.False(remainingAlarm!.IsAcknowledged);
+        Assert.Equal(100, await db.Alarms.CountAsync());
+    }
+
+    [Fact]
+    public async Task SaveReportAsync_PersistsSimBalanceAndRawText_AndRejectsEmptyPhone()
+    {
+        using var db = new AppDbContext(_dbPath);
+
+        var snapshot = new TelemetrySnapshot
+        {
+            SenderPhone = "+79993332211",
+            DeviceName = "Объект Баланс",
+            MainPower = PowerState.Normal,
+            BatteryVoltage = 12.7,
+            SimBalance = 315.50m,
+            RawText = "220V: Есть Баланс: 315.50р"
+        };
+
+        await db.SaveReportAsync("+79993332211", snapshot);
+
+        var savedTelemetry = await db.Telemetry.OrderByDescending(t => t.Id).FirstAsync();
+        Assert.Equal(315.50m, savedTelemetry.SimBalance);
+        Assert.Equal("220V: Есть Баланс: 315.50р", savedTelemetry.RawSmsText);
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            db.SaveReportAsync("", new TelemetrySnapshot { RawText = "spam" }));
     }
 }

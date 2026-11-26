@@ -21,7 +21,7 @@
                         <TextBlock Text="📡" FontSize="18" VerticalAlignment="Center"/>
                         <TextBlock Text="Telemetry Hub" FontSize="18" FontWeight="Bold" VerticalAlignment="Center"/>
                     </StackPanel>
-                    <TextBlock Text="Кроссплатформенная редакция (Beta)" FontSize="10" Foreground="#757575" Margin="26,0,0,0"/>
+                    <TextBlock Text="Диспетчерский пульт телеметрии" FontSize="10" Foreground="#757575" Margin="26,0,0,0"/>
                 </StackPanel>
 
                 <!-- Navigation Menu Items -->
@@ -101,9 +101,10 @@
                         </Button>
 
                         <!-- 3. Modem & COM port -->
-                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="2,2">
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="2,2"
+                                    ToolTip.Tip="{Binding ModemErrorTooltip}">
                             <Ellipse Width="8" Height="8" Fill="{Binding ModemStatusBrush}" VerticalAlignment="Center"/>
-                            <TextBlock Text="{Binding ModemStatusText}" FontSize="11" Foreground="#9E9E9E" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding ModemStatusText}" FontSize="11" Foreground="#9E9E9E" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="185"/>
                         </StackPanel>
 
                         <!-- 4. Cellular operator -->

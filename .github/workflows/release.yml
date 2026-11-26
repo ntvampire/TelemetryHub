@@ -48,6 +48,11 @@ jobs:
           # Сохраняем заметки в файл для передачи в action
           Set-Content -Path "release_notes.txt" -Value $notes -Encoding UTF8
 
+      - name: Run Unit and Integration Tests
+        shell: pwsh
+        run: |
+          dotnet test KsitalTelemetryHub.sln -c Release --nologo
+
       - name: Run Release Build Script
         shell: pwsh
         run: |
@@ -62,6 +67,7 @@ jobs:
           files: |
             dist/*setup-*.exe
             dist/*.tar.gz
+            dist/checksums.txt
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
